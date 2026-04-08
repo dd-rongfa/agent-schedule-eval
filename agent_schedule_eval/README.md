@@ -79,6 +79,8 @@ Layer 3  工具调用（Phase 3）    模型发起 tool_calls → FakeScheduler 
 
 **结论：纯文本意图评测会严重高估模型的实际执行能力。**
 
+> **Prompt 设计说明**：Phase 2 使用了 7 条评分规则的详细 system prompt，Phase 3 仅给出一句话角色指令 + tools schema。这是有意为之——真实 Agent 场景中，工具定义本身就是隐式指令，不会再配一套冗长的 prompt；如果对齐 prompt 详细度反而会掩盖模型在工具调用场景下的真实短板。
+
 ### 3. 失败模式分类
 
 | 失败模式 | 出现频率 | 影响层级 |
