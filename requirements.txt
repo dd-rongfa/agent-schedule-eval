@@ -3,3 +3,4 @@ deepeval>=0.21
 pytest>=7.0
 pyyaml>=6.0
 matplotlib>=3.5
+seaborn>=0.12

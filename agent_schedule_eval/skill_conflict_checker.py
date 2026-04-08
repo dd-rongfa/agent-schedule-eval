@@ -27,7 +27,7 @@ from openai import OpenAI
 
 # ── 环境 ─────────────────────────────────────────────
 
-ENV_FILE = Path(__file__).resolve().parent.parent / "starter_judge" / ".env"
+ENV_FILE = Path(__file__).resolve().parent.parent / "examples" / "starter_judge" / ".env"
 SKILLS_DIR = Path(__file__).parent / "skills"
 
 
