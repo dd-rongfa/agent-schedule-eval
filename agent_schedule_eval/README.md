@@ -1,6 +1,6 @@
 # Agent 定时任务能力评测 — Bloom × LLM-as-a-Judge
 
-> 一天内从零构建的 AI 评测作品集项目：用 Bloom 认知分层 + LLM Judge + Function Calling 三层评测，暴露模型"说到做不到"的行为鸿沟。
+> Bloom 认知分层 + LLM Judge + Function Calling + Skill 注入四层评测，暴露模型"说到做不到"的行为鸿沟。
 
 ---
 
