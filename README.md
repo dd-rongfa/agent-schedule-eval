@@ -4,6 +4,8 @@
 
 **设计思路**：不信任评测工具本身 → 先用 15 个人工标注验证 Judge 可信度（κ=0.73），再用可信的 Judge 跑 288+ 条自动化评测，最后用对照实验验证 Skill 注入的真实收益。
 
+**项目起源**：部署开源 Agent 项目 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版）后，手动测试发现其定时任务几乎全部提前触发。这不是个别 bug，而是模型在"自然语言→时间参数→工具调用"链路上的系统性短板，由此启动本项目的系统性评测。
+
 **项目定位**：这是一个小而完整的 Agent 评测原型 —— 效果不满意可以换模型，方法是可复用的。clone 后 30 分钟即可跑通全流程，也可以直接复用评测框架换成你自己的场景。
 
 ## 核心发现
@@ -26,7 +28,7 @@
 │   ├── skills/                  4 个 Skill 文件（正确/错误/矛盾）
 │   └── results/                 6 份 JSONL 结果 (288+ 条) + 热力图
 │
-├── examples/                    ← 附录：LLM Judge 与 promptfoo 的独立 demo
+├── examples/                    ← 附录：LLM Judge + promptfoo 独立 demo + 定时任务 promptfoo 版
 ├── .env.example                 环境变量模板
 └── requirements.txt             Python 依赖
 ```

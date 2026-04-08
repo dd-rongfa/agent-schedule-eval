@@ -228,6 +228,46 @@
 
 **长期（换域）：**
 - [ ] 换到高复杂度域（客服退款 SOP、代码 review 流程），做 skill writing style 比较
+
+---
+
+## Phase 6：端到端实测（计划中 📋）
+
+**目标：** 从 API 级 benchmark 延伸到真实 Agent 产品验证，形成闭环
+
+**背景：**
+- 本项目的起点就是部署 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版）后发现定时任务几乎全部提前触发
+- Phase 1-5 在 API 级别量化了问题，Phase 6 回到真实产品做端到端验证
+
+| 步骤 | 做什么 | 产出 |
+|------|--------|------|
+| 6.1 | 部署 nanobot，用本框架的 L1-L4 case 手动测试实际调度准确率 | 真实 Agent 通过率数据 |
+| 6.2 | 对比 API 评测结果与端到端实测结果——偏差有多大？ | 偏差分析报告 |
+| 6.3 | 向 nanobot 注入本项目的 schedule_skill.md，验证 Skill 在真实环境中的收益 | Skill 实测效果 |
+| 6.4 | 尝试其他开源 Agent（如 LobeChat），横向对比 | 多产品对照 |
+
+**完成标准：** API 评测预测 vs 真实 Agent 表现的一致性分析，至少覆盖 1 个开源 Agent
+
+---
+
+## 框架选型说明
+
+本项目同时使用了两套评测框架，各有分工：
+
+| 框架 | 用途 | 优势场景 |
+|------|------|---------|
+| **pytest**（主力） | agent_schedule_eval/ 全部 Phase | Function Calling 断言、mock 工具、Bloom 分层聚合、JSONL 结果记录 |
+| **promptfoo**（辅助） | examples/ 中的快速验证 | 改 prompt 后一行命令看效果、零代码 assert、结果可视化（promptfoo view） |
+
+选择 pytest 作为主力的原因：
+1. Phase 3/5 需要解析 `tool_calls` 结构体，promptfoo 的内置 assert（contains / is-json）不够灵活
+2. 需要 `conftest.py` + `mock_tools.py` 的 fixture 支持多轮对话和工具注入
+3. 结果需要按 Bloom 层级聚合分析，pytest 的参数化 + JSONL 更方便
+
+promptfoo 保留在 examples/ 中的原因：
+1. 展示对行业标准评测框架的掌握
+2. 做 prompt 快速 A/B 测试时比 pytest 效率更高
+3. `examples/promptfoo/schedule-eval.yaml` 用同一场景演示了两套框架的差异
 - [ ] 构建 "Skill Quality Benchmark" 框架：给定标准任务集，量化不同 skill 写法的效果差异
 
 ### 产出文件

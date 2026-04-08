@@ -6,7 +6,9 @@
 
 ## 动机
 
-市面上的 Agent 评测（AgentBench、ToolBench、TPS-Bench）聚焦于代码生成、API 编排或 workflow 调度，**没有人系统评测过 Agent 对"自然语言→时间参数→定时动作"这个垂直能力的准确性**。
+起因是部署开源 Agent 项目 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版）后，手动测试发现其定时任务功能几乎全部提前触发——模型能理解"5分钟后提醒我"的意图，却无法正确生成时间参数。这不是个别 bug，而是系统性的能力缺陷。
+
+然而市面上的 Agent 评测（AgentBench、ToolBench、TPS-Bench）聚焦于代码生成、API 编排或 workflow 调度，**没有人系统评测过 Agent 对"自然语言→时间参数→定时动作"这个垂直能力的准确性**。
 
 定时任务看似简单（"5分钟后提醒我喝水"），但认知复杂度跨度极大——从 L1 识别意图到 L6 多约束规划，天然匹配 Bloom's Taxonomy 的六层结构。
 

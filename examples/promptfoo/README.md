@@ -58,6 +58,21 @@ npm run promptfoo:demo:s01
 npm run promptfoo:demo:s02
 ```
 
+## 6. 定时任务意图评测（核心场景 promptfoo 版）
+
+用 promptfoo 跑与 `agent_schedule_eval/` 相同场景的定时任务意图评测（Bloom L1-L3），展示两套框架对同一评测目标的不同实现方式。
+
+核心评测最终选择 pytest 而非 promptfoo 的原因：
+- Function Calling 断言需要解析 `tool_calls` 结构，promptfoo 的 assert 不够灵活
+- 需要 mock 工具 + 多轮交互，pytest fixture 更适合
+- 但 promptfoo 适合快速验证 prompt 变更——改 prompt 后一行命令看效果
+
+运行（需要 API Key）：
+
+```powershell
+npm run promptfoo:schedule
+```
+
 ## 常用命令
 
 校验配置：

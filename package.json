@@ -10,6 +10,7 @@
     "promptfoo:demo:python": "promptfoo eval -c examples/promptfoo/python-provider.yaml --no-progress-bar",
     "promptfoo:demo:s01": "promptfoo eval -c examples/promptfoo/s01-demo.yaml --no-progress-bar",
     "promptfoo:demo:s02": "promptfoo eval -c examples/promptfoo/s02-demo.yaml --no-progress-bar",
+    "promptfoo:schedule": "promptfoo eval -c examples/promptfoo/schedule-eval.yaml --env-file examples/starter_judge/.env --no-progress-bar",
     "promptfoo:starter": "promptfoo eval -c examples/starter_judge/promptfooconfig.yaml --env-file examples/starter_judge/.env --no-progress-bar"
   },
   "keywords": [],
