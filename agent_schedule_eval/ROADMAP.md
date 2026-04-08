@@ -238,15 +238,18 @@
 **背景：**
 - 本项目的起点就是部署 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版）后发现定时任务几乎全部提前触发
 - Phase 1-5 在 API 级别量化了问题，Phase 6 回到真实产品做端到端验证
+- OpenClaw 生态相关项目：
+  - [OpenClaw](https://github.com/openclaw/openclaw)（351k stars）— 完整版，TypeScript，有 cron 模块
+  - [nanobot](https://github.com/HKUDS/nanobot)（38.4k stars）— Python 轻量版，适合快速部署和测试
 
 | 步骤 | 做什么 | 产出 |
 |------|--------|------|
 | 6.1 | 部署 nanobot，用本框架的 L1-L4 case 手动测试实际调度准确率 | 真实 Agent 通过率数据 |
 | 6.2 | 对比 API 评测结果与端到端实测结果——偏差有多大？ | 偏差分析报告 |
 | 6.3 | 向 nanobot 注入本项目的 schedule_skill.md，验证 Skill 在真实环境中的收益 | Skill 实测效果 |
-| 6.4 | 尝试其他开源 Agent（如 LobeChat），横向对比 | 多产品对照 |
+| 6.4 | 对比 OpenClaw 主项目的 cron 模块表现（如条件允许） | 跨产品对照 |
 
-**完成标准：** API 评测预测 vs 真实 Agent 表现的一致性分析，至少覆盖 1 个开源 Agent
+**完成标准：** API 评测预测 vs 真实 Agent 表现的一致性分析，至少覆盖 1 个 OpenClaw 生态 Agent
 
 ---
 
