@@ -1,162 +1,150 @@
-# Starter Walkthrough
+# Starter 执行流程详解
 
-This file explains how the starter template runs from beginning to end.
+本文逐步解释 starter 模板从启动到出结果的完整流程。
 
-## 1. Which command actually starts everything
+## 1. 真正的入口是什么
 
-You run:
+你运行：
 
 ```powershell
 npm run promptfoo:starter
 ```
 
-That command is defined in `package.json` and expands to:
+该命令定义在 `package.json`，展开为：
 
 ```powershell
 promptfoo eval -c starter_judge/promptfooconfig.yaml --env-file starter_judge/.env --no-progress-bar
 ```
 
-So the true entrypoint is not a Python file. The true entrypoint is the `promptfoo eval` command.
+所以真正的入口不是 Python 文件，而是 `promptfoo eval` 命令。
 
-## 2. What `promptfoo` reads first
+## 2. promptfoo 先读什么
 
-Promptfoo first reads:
+promptfoo 首先读取：
 
 - `starter_judge/promptfooconfig.yaml`
 - `starter_judge/.env`
 
-From the config file it learns:
+从配置文件得知：
 
-1. Which provider to call
-2. Which prompt template to use
-3. Which test cases to load
+1. 调用哪个 provider
+2. 使用什么 prompt 模板
+3. 加载哪些测试用例
 
-From `.env` it learns:
+从 `.env` 得知：
 
-1. API key
+1. API Key
 2. Base URL
-3. Judge model name
+3. Judge 模型名
 
-## 3. What each file is responsible for
+## 3. 每个文件的职责
 
 ### `promptfooconfig.yaml`
 
-This is the framework entry.
+框架入口。告诉 promptfoo：
 
-It tells promptfoo:
-
-1. Use `file://./judge_provider.py` as the provider
-2. Use the prompt template `Judge which answer is better for this question: {{question}}`
-3. Load test cases from `cases.yaml`
+1. 使用 `file://./judge_provider.py` 作为 provider
+2. 使用 prompt 模板 `Judge which answer is better for this question: {{question}}`
+3. 从 `cases.yaml` 加载测试数据
 
 ### `cases.yaml`
 
-This is only data.
-
-Each case contains:
+纯数据文件。每条 case 包含：
 
 1. `question`
 2. `answer_a`
 3. `answer_b`
 4. `assert`
 
-So this file answers one question only: what data should be evaluated?
+只回答一个问题：评测什么数据？
 
 ### `judge_provider.py`
 
-This is the adapter layer between promptfoo and your Python logic.
+适配层——连接 promptfoo 和你的 Python 逻辑。
 
-Promptfoo does not know your business logic, so it calls the function:
+promptfoo 不了解你的业务逻辑，它只调用：
 
 ```python
 call_api(prompt, options, context)
 ```
 
-This file:
+这个文件：
 
-1. Reads `question`, `answer_a`, and `answer_b` from `context["vars"]`
-2. Calls `run_judge(...)`
-3. Converts the result into the shape promptfoo expects
+1. 从 `context["vars"]` 提取 `question`、`answer_a`、`answer_b`
+2. 调用 `run_judge(...)`
+3. 把结果转成 promptfoo 需要的格式
 
-So this file answers: how does promptfoo talk to my Python code?
+回答的问题：promptfoo 怎么跟我的 Python 代码通信？
 
 ### `judge_logic.py`
 
-This is the real business logic.
+真正的业务逻辑。做三件事：
 
-It does three things:
+1. 读取环境变量（`DEEPSEEK_API_KEY` 等）
+2. 构建 Judge prompt
+3. 调用模型并解析 JSON 结果
 
-1. Read environment variables such as `DEEPSEEK_API_KEY`
-2. Build the judge prompt
-3. Call the model and parse the JSON result
+回答的问题：Judge 模型是怎么被调用的？
 
-So this file answers: how is the judge model actually called?
+## 4. 一条测试用例的执行过程
 
-## 4. What happens when one test case runs
+以 `cases.yaml` 中的一行为例，promptfoo 依次：
 
-Take one row in `cases.yaml`.
+1. 加载该 case 的变量
+2. 将 `{{question}}` 填入 prompt 模板
+3. 调用 `judge_provider.py`
+4. `judge_provider.py` 从 `context["vars"]` 提取原始变量
+5. `judge_provider.py` 调用 `run_judge(question, answer_a, answer_b)`
+6. `judge_logic.py` 调用 LLM
+7. LLM 返回 JSON，如 `{"winner": "B", "reason": "..."}`
+8. `judge_provider.py` 将 JSON 作为 `output` 返回给 promptfoo
+9. promptfoo 执行 `cases.yaml` 中的 assert
+10. promptfoo 标记该 case 为 pass / fail / error
 
-Promptfoo does this:
+## 5. 为什么 validate 通过但 eval 仍然报错
 
-1. Load the case variables
-2. Fill `{{question}}` into the prompt template
-3. Call `judge_provider.py`
-4. `judge_provider.py` extracts the original variables from `context["vars"]`
-5. `judge_provider.py` calls `run_judge(question, answer_a, answer_b)`
-6. `judge_logic.py` calls the LLM
-7. The LLM returns JSON like `{"winner": "B", "reason": "..."}`
-8. `judge_provider.py` returns that JSON to promptfoo as `output`
-9. Promptfoo runs the assertions in `cases.yaml`
-10. Promptfoo marks the case as pass, fail, or error
-
-## 5. Why `validate` can pass but `eval` can still fail
-
-This is a very important distinction.
+这是一个非常重要的区别。
 
 ### `promptfoo validate`
 
-This checks only structure.
+只检查结构，例如：
 
-For example, it checks:
+1. YAML 是否合法？
+2. 配置结构是否正确？
+3. provider 路径格式对不对？
 
-1. Is the YAML valid?
-2. Does the config shape make sense?
-3. Is the provider path formatted correctly?
-
-It does not call your model.
+**不调用模型。**
 
 ### `promptfoo eval`
 
-This is real execution.
+才是真正执行——它会：
 
-It actually:
+1. 加载 provider
+2. 运行你的 Python 函数
+3. 调用外部模型 API
+4. 执行 assert 断言
 
-1. Loads the provider
-2. Runs your Python function
-3. Calls the external model API
-4. Evaluates assertions
+所以缺 API Key、模型名错误、网络问题、provider bug 都只在 `eval` 阶段暴露。
 
-So missing API keys, invalid model names, network errors, or provider bugs only appear during `eval`.
+## 6. 最简单的记忆方式
 
-## 6. The easiest way to memorize the architecture
+四层架构：
 
-Think in four layers:
+1. `.env`：凭证和运行配置
+2. `cases.yaml`：评测数据
+3. `judge_provider.py`：promptfoo 适配器
+4. `judge_logic.py`：模型调用逻辑
 
-1. `.env`: credentials and runtime settings
-2. `cases.yaml`: evaluation data
-3. `judge_provider.py`: adapter for promptfoo
-4. `judge_logic.py`: actual model-calling logic
+以及它们之上的编排层：
 
-And above all of them:
+5. `promptfoo eval`：统一调度器
 
-5. `promptfoo eval`: the orchestrator
+## 7. 复用模板时优先改什么
 
-## 7. What you should change first when copying this template
+通常只需大改两个文件：
 
-When you build your next demo, usually only two files change a lot:
-
-1. `judge_logic.py`
-2. `cases.yaml`
+1. `judge_logic.py`（prompt 和模型逻辑）
+2. `cases.yaml`（测试数据）
 
 Usually these files change very little:
 

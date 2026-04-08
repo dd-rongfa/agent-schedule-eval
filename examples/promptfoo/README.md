@@ -1,28 +1,28 @@
-# promptfoo demos
+# promptfoo 示例集
 
-This folder contains three small demos that run locally without API keys.
+本文件夹包含若干小型 demo，可在本地运行，无需 API Key（echo/logged 不调模型）。
 
-## 1. Basic echo demo
+## 1. 基础 echo demo
 
-Shows the core config shape:
+展示 promptfoo 配置的核心结构：
 
 - `providers`
 - `prompts`
 - `tests`
 - `assert`
 
-Run:
+运行：
 
 ```powershell
 npm run promptfoo:demo:echo
 ```
 
-## 2. Logged output demo
+## 2. 日志回放 demo
 
-Shows how to evaluate outputs that already exist in logs or production traces.
-The `echo` provider returns the logged payload unchanged, and `transform` extracts the field you want to assert on.
+展示如何对已有的日志/线上输出做评测。
+`echo` provider 原样返回 logged payload，`transform` 提取需要断言的字段。
 
-Run:
+运行：
 
 ```powershell
 npm run promptfoo:demo:logs
@@ -30,43 +30,43 @@ npm run promptfoo:demo:logs
 
 ## 3. Python provider demo
 
-Shows how to connect promptfoo to local Python logic using `file://./demo_provider.py`.
+展示如何通过 `file://./demo_provider.py` 把 promptfoo 接入本地 Python 逻辑。
 
-Run:
+运行：
 
 ```powershell
 npm run promptfoo:demo:python
 ```
 
-## 4. S01 framework demo
+## 4. S01 框架 demo
 
-Wraps [s01.py](../s01.py) as a promptfoo Python provider so you can run the judge workflow through the framework.
+将 [s01_simple_judge.py](../s01_simple_judge.py) 包装为 promptfoo Python provider，通过框架运行 Judge 流程。
 
-Run:
+运行：
 
 ```powershell
 npm run promptfoo:demo:s01
 ```
 
-## 5. S02 framework demo
+## 5. S02 框架 demo
 
-Wraps [s02.py](../s02.py) as a promptfoo Python provider so you can run the full model-vs-model blind judging flow through the framework.
+将 [s02_blind_judge.py](../s02_blind_judge.py) 包装为 promptfoo Python provider，运行双模型盲评流程。
 
-Run:
+运行：
 
 ```powershell
 npm run promptfoo:demo:s02
 ```
 
-## Useful commands
+## 常用命令
 
-Validate a config:
+校验配置：
 
 ```powershell
 npx promptfoo validate -c promptfoo/basic-echo.yaml
 ```
 
-Open the local result viewer after an eval:
+运行评测后打开本地结果查看器：
 
 ```powershell
 npx promptfoo view -y
