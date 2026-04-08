@@ -1,0 +1,7 @@
+description: Beginner-friendly judge template that still follows a simple engineering split
+providers:
+  - id: file://./judge_provider.py
+    label: local-judge-provider
+prompts:
+  - "Judge which answer is better for this question: {{question}}"
+tests: file://./cases.yaml
