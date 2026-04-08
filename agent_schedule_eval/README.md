@@ -6,7 +6,7 @@
 
 ## 动机
 
-起因是部署开源 Agent 项目 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版）后，手动测试发现其定时任务功能几乎全部提前触发——模型能理解"5分钟后提醒我"的意图，却无法正确生成时间参数。这不是个别 bug，而是系统性的能力缺陷。
+2026 年初部署开源 Agent 项目 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版），手动测试发现其定时任务几乎全部提前触发——模型能理解"5分钟后提醒我"的意图，却无法正确生成时间参数。这不是个别 bug，而是系统性的能力缺陷。随后通过 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) 系统学习 Agent 架构原理，并将这些失效观察系统化为本评测框架。
 
 然而市面上的 Agent 评测（AgentBench、ToolBench、TPS-Bench）聚焦于代码生成、API 编排或 workflow 调度，**没有人系统评测过 Agent 对"自然语言→时间参数→定时动作"这个垂直能力的准确性**。
 
