@@ -130,10 +130,11 @@ std = np.std(scores)  # 0.041
 - Zheng et al. "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena." NeurIPS 2023.
   → LLM-as-a-Judge 的奠基论文，70%+ 与人类一致
 
-- Li et al. "Generative Judge for Evaluating Alignment." ICLR 2024.
+- Liu et al. "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment." EMNLP 2023.
   → GEval 方法论来源
 
-- Shi et al. "Judging the Judges: A Systematic Investigation of Position Bias in LLM Evaluators." ACL 2024.
+- ℹ️ 以下论文待验证，仅供参考方向：
+  Position bias in LLM evaluators — 搜索关键词：position bias, LLM-as-a-Judge
   → 位置偏差的系统研究
 ```
 

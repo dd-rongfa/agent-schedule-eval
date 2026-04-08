@@ -2,7 +2,7 @@
 
 > Bloom 认知分层 × LLM Judge × Function Calling × Skill 注入 — 四层评测量化模型"说到做不到"的鸿沟。
 
-**设计思路**：不信任评测工具本身 → 先用 15 个人工标注验证 Judge 可信度（κ=0.73），再用可信的 Judge 跑 288+ 条自动化评测，最后用对照实验验证 Skill 注入的真实收益。
+**设计思路**：不信任评测工具本身 → 先用 15 个人工标注验证 Judge 可信度（κ=0.73），再用可信的 Judge 跑 304 条自动化评测，最后用对照实验验证 Skill 注入的真实收益。
 
 **项目起源**：2026 年初部署开源 Agent 项目 [nanobot](https://github.com/HKUDS/nanobot)（OpenClaw 简化版），手动测试发现其定时任务几乎全部提前触发。这不是个别 bug，而是模型在"自然语言→时间参数→工具调用"链路上的系统性短板。随后通过 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) 系统学习 Agent 架构原理，并将这些失效观察系统化为本评测框架。
 
@@ -26,7 +26,7 @@
 │   ├── skill_conflict_checker.py  静态 Skill 冲突检测工具
 │   ├── baseline_compare.py      多模型对比 + 热力图
 │   ├── skills/                  4 个 Skill 文件（正确/错误/矛盾）
-│   └── results/                 6 份 JSONL 结果 (288+ 条) + 热力图
+│   └── results/                 6 份 JSONL 结果 (304 条) + 热力图
 │
 ├── examples/                    ← 附录：LLM Judge + promptfoo 独立 demo + 定时任务 promptfoo 版
 ├── .env.example                 环境变量模板
@@ -55,7 +55,7 @@
 
 ```bash
 # 克隆
-git clone https://github.com/dd-rongfa/llm_as_a_judge.git
+git clone https://github.com/dd-rongfa/agent-schedule-eval.git
 cd llm_as_a_judge
 
 # 安装依赖
@@ -158,7 +158,7 @@ python -m pytest agent_schedule_eval/test_bloom_eval.py -v
 
 - **想入门 Agent 评测的开发者**：`examples/` 提供从最简 Judge 到 promptfoo 的渐进式示例
 - **想建立自己评测体系的团队**：`agent_schedule_eval/` 是完整可复用的框架，换场景只需改 YAML 用例和 Skill 文件
-- **想快速复现结果的研究者**：所有 288+ 条记录以 JSONL 格式保存，可直接分析
+- **想快速复现结果的研究者**：所有 304 条记录以 JSONL 格式保存，可直接分析
 
 ### 如何扩展到你自己的场景
 

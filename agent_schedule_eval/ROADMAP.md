@@ -145,7 +145,7 @@
 - Skill = 按需注入 system prompt 的结构化 SOP，是 Agent 系统中常见的上下文工程手段
 - 研究问题：正确 skill / 错误 skill / 多 skill 注入，对模型行为各有什么影响？
 
-### 实验设计（4 组对照）
+### 实验设计（5 组对照）
 
 | 组 | 描述 | System Prompt |
 |---|---|---|
@@ -153,6 +153,7 @@
 | B | 正确 Skill | + schedule_skill.md |
 | C | 错误 Skill | + email_skill.md（与任务无关）|
 | D | 3 Skill（含1正确） | + schedule + email + note |
+| E | 矛盾 Skill | + schedule_skill.md + conflict_skill.md |
 
 用例：复用 L1-L4 共 16 个有工具调用断言的 case（test_tool_calling.py 的用例集）
 
@@ -278,7 +279,7 @@ promptfoo 保留在 examples/ 中的原因：
 ### 产出文件
 | 文件 | 定位 |
 |------|------|
-| `test_skill_loading.py` | Phase 5 评测代码，4 组对照设计 |
+| `test_skill_loading.py` | Phase 5 评测代码，5 组对照设计 |
 | `results_skill_loading.jsonl` | 结果记录（DeepSeek，滚动追加） |
 | `skills/schedule_skill.md` | 正确 skill（当前：v3，含 few-shot + 时间默认值） |
 | `skill_conflict_checker.py` | 静态冲突检测工具，LLM 分析 skill 文件对，输出结构化冲突报告 |
