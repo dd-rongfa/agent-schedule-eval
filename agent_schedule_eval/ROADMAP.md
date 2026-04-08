@@ -6,7 +6,7 @@
 
 ---
 
-## 当前状态（2026-04-07 全部完成 ✅）
+## 当前状态（2026-04-08 全部完成 ✅）
 
 - ✅ DeepEval 框架掌握（4 个渐进式 example）
 - ✅ Bloom × Agent 定时任务评测框架成型（24 个分层 case + JSONL 记录）
@@ -16,7 +16,9 @@
 - ✅ 多模型 Baseline 对照完成（DeepSeek 67% vs MiMo 50%）
 - ✅ 热力图和对比表生成（bloom_heatmap.png）
 - ✅ Function Calling 评测完成（DeepSeek 19% vs MiMo 25%）
-- ✅ README 输出完成
+- ✅ Skill Loading 5 组对照 + 跨模型冲突实验完成
+- ✅ README 输出完成 + GitHub 推送（agent-schedule-eval）
+- ✅ promptfoo 定时任务 demo 补充（两套框架选型说明）
 
 ---
 
@@ -120,22 +122,22 @@
 
 ### 真实性层（加分项 🎯）
 - [ ] 至少 5 个 case 来自真实 Agent 测试中发现的 bug
-- [ ] 有 function calling 级别的断言
+- [x] 有 function calling 级别的断言
 - [ ] 有至少 1 个多轮交互测试
 
 ### 表达层（必须有 📝）
-- [ ] README 里有"动机→方法→结果→局限"
-- [ ] 面试官不看代码只看 README 就能理解
-- [ ] 能回答"为什么 LLM judge 可信"（用数据）
+- [x] README 里有"动机→方法→结果→局限"
+- [x] 面试官不看代码只看 README 就能理解
+- [x] 能回答"为什么 LLM judge 可信"（用数据）
 
 ### 自我质疑层（面试防御 🛡️）
-- [ ] 能说出 3 个局限
-- [ ] 能解释 Bloom 在这里是"借用"而非严格 apply
-- [ ] 能解释"用 AI 辅助做 AI evaluation"为什么不是循环论证（因为有人工标注锚定）
+- [x] 能说出 3 个局限
+- [x] 能解释 Bloom 在这里是"借用"而非严格 apply
+- [x] 能解释"用 AI 辅助做 AI evaluation"为什么不是循环论证（因为有人工标注锚定）
 
 ---
 
-## Phase 5：Skill Loading 评测（进行中 🔄）
+## Phase 5：Skill Loading 评测（已完成 ✅）
 
 **目标：** 评测"向 Agent 注入 Skill 文档"这一机制是否真正有效，以及有效性的边界
 
