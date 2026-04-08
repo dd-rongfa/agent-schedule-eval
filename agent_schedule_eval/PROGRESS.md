@@ -198,7 +198,7 @@ Layer 2 JSON   3/3  100%
 
 ---
 
-## 阶段九：Skill Loading 评测（进行中 🔄）
+## 阶段九：Skill Loading 评测（已完成 ✅）
 
 ### 做了什么
 - 提出研究问题：向 Agent 注入 Skill 文档（SOP）是否真正有效？效果边界在哪？
@@ -293,3 +293,31 @@ E 组是今天最重要的发现：同一对矛盾 skill，DeepSeek 崩溃，MiM
 - 多轮对话状态管理测试 🟡
 - ROC/AUC 🟢
 - 阈值 threshold sweep（F1 最优 cutoff）🟢
+
+---
+
+## 阶段十：项目发布与文档完善（已完成 ✅）
+
+### 做了什么（2026-04-08）
+- GitHub 仓库创建并推送（agent-schedule-eval），完成 About 描述和 Topics 标签
+- 起源故事多轮迭代：最终定为 nanobot 失效发现 → learn-claude-code 学原理 → 系统化评测
+- ROADMAP 验收清单全部勾选（真实性层/表达层/自我质疑层）
+- 3 份英文文档翻译为中文（starter_judge + promptfoo README/WALKTHROUGH）
+- promptfoo 定时任务 demo 补充（schedule-eval.yaml + schedule_provider.py）
+- Phase 6 端到端规划写入 ROADMAP（OpenClaw 生态）
+- 框架选型说明补充（为什么 pytest 而非 promptfoo 做主评测）
+- jd0407 简历第2条更新：加入 Skill Loading + conflict checker 数据
+- GitHub 仓库清理建议（fork 管理、About 配置）
+- 本地全量验证通过：123 tests collected、6 JSONL 文件可读、3 promptfoo 配置有效
+
+### 产出文件
+| 文件 | 定位 |
+|------|------|
+| `examples/promptfoo/schedule-eval.yaml` | promptfoo 定时任务 demo（8 个 L1-L3 case）|
+| `examples/promptfoo/schedule_provider.py` | promptfoo provider |
+| 3 份翻译文档 | 中文化 |
+
+### 项目状态
+- GitHub: https://github.com/dd-rongfa/agent-schedule-eval （10 commits on main）
+- 置顶显示，About/Topics 已配置
+- 所有 Phase 1-5 完成，Phase 6 为未来规划
