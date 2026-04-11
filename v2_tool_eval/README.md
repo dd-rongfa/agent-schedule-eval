@@ -44,7 +44,7 @@ v2 做了三件关键的事：
 - 系统操作（3）：`bash`、`find_program`、`control_window`
 - 后台任务（1）：`check_task_status`
 
-这些工具由 [mock_tools.py](./mock_tools.py) 里的 Fake backend 汇总到 `ToolDispatcher`，记录调用轨迹而不产生真实副作用。
+这些工具由 [mock_tools.py](./eval/mock_tools.py) 里的 Fake backend 汇总到 `ToolDispatcher`，记录调用轨迹而不产生真实副作用。
 
 ### 3. Case 收敛原则
 

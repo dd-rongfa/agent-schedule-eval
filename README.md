@@ -18,9 +18,9 @@ v3 真实部署        Telegram 实测——Mock 结论上线还成立吗？
 
 | 阶段 | 目录 | 核心问题 | 方法 | 数据量 | 状态 |
 |------|------|---------|------|--------|------|
-| [v1](v1_intent_eval/) | v1_intent_eval/ | 纯语言理解能力天花板在哪？ | GEval (LLM Judge) + JSON 断言 | 26 case × 4 模型 × 3 轮 | ✅ |
-| [v2](v2_tool_eval/) | v2_tool_eval/ | 有工具约束后执行力如何？ | 确定性断言（无 LLM Judge） | 70 case × 4 模型 × 3 轮 | ✅ |
-| [v3](v3_live_eval/) | v3_live_eval/nanobot/ | Mock 结论在真实 Agent 上是否成立？ | Telegram 实测 + 人工复核 | 10 case × 3 模型 | ✅ |
+| [v1](v1_intent_eval/README.md) | v1_intent_eval/ | 纯语言理解能力天花板在哪？ | GEval (LLM Judge) + JSON 断言 | 26 case × 4 模型 × 3 轮 | ✅ |
+| [v2](v2_tool_eval/README.md) | v2_tool_eval/ | 有工具约束后执行力如何？ | 确定性断言（无 LLM Judge） | 70 case × 4 模型 × 3 轮 | ✅ |
+| [v3](v3_live_eval/nanobot/README.md) | v3_live_eval/nanobot/ | Mock 结论在真实 Agent 上是否成立？ | Telegram 实测 + 人工复核 | 10 case × 3 模型 | ✅ |
 
 ## 核心发现
 
