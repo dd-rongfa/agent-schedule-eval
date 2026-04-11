@@ -7,6 +7,10 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.deepeval/
+
+# Archive (internal docs not for public)
+_archive/
 
 # Node
 node_modules/
