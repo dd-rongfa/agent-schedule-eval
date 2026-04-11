@@ -1,0 +1,246 @@
+# ==========================================
+# 定时任务场景评测用例集
+# 用途：
+#   1. 自动化评测：用 DeepEval 直接调大模型，测理解与规划能力
+#   2. 手动实测：用同一批提示词去测试小龙虾等 Agent 项目
+# ==========================================
+
+# ---- 类别 1：简单定时任务 ----
+simple_schedule:
+  - input: "5分钟后提醒我喝水"
+    expected_action: "create_schedule"
+    expected_delay_minutes: 5
+    expected_content: "喝水"
+    difficulty: easy
+    bloom_level: 3
+    bloom_tag: apply
+
+  - input: "明天早上8点提醒我开会"
+    expected_action: "create_schedule"
+    expected_time: "08:00"
+    expected_content: "开会"
+    difficulty: easy
+    bloom_level: 2
+    bloom_tag: understand
+
+  - input: "下午3点半叫我一声"
+    expected_action: "create_schedule"
+    expected_time: "15:30"
+    expected_content: "提醒"
+    difficulty: easy
+    bloom_level: 2
+    bloom_tag: understand
+
+# ---- 类别 2：重复/周期任务 ----
+recurring_schedule:
+  - input: "接下来15分钟内，每5分钟给我发一条消息"
+    expected_action: "create_recurring"
+    expected_interval_minutes: 5
+    expected_total_count: 3
+    difficulty: medium
+    bloom_level: 3
+    bloom_tag: apply
+
+  - input: "每天早上9点提醒我打卡"
+    expected_action: "create_recurring"
+    expected_recurrence: "daily"
+    expected_time: "09:00"
+    difficulty: medium
+    bloom_level: 3
+    bloom_tag: apply
+
+  - input: "每周一和周五下午6点提醒我写周报"
+    expected_action: "create_recurring"
+    expected_recurrence: "weekly"
+    expected_days: ["monday", "friday"]
+    expected_time: "18:00"
+    difficulty: hard
+    bloom_level: 3
+    bloom_tag: apply
+
+# ---- 类别 3：取消任务 ----
+cancel_schedule:
+  - input: "取消我明天早上的提醒"
+    expected_action: "cancel_schedule"
+    difficulty: easy
+    bloom_level: 1
+    bloom_tag: remember
+
+  - input: "把之前设的每天打卡提醒关掉"
+    expected_action: "cancel_schedule"
+    expected_target: "daily_checkin"
+    difficulty: medium
+    bloom_level: 1
+    bloom_tag: remember
+
+# ---- 类别 4：一句话里既创建又取消 ----
+create_and_cancel:
+  - input: "把明天早上8点的会议提醒取消，改成9点"
+    expected_actions: ["cancel_schedule", "create_schedule"]
+    expected_new_time: "09:00"
+    difficulty: hard
+    bloom_level: 4
+    bloom_tag: analyze
+
+  - input: "原来设的5分钟后提醒取消掉，改成10分钟后"
+    expected_actions: ["cancel_schedule", "create_schedule"]
+    expected_new_delay_minutes: 10
+    difficulty: hard
+    bloom_level: 4
+    bloom_tag: analyze
+
+  - input: "先帮我设一个明天下午3点的提醒，然后把今天下午那个取消"
+    expected_actions: ["create_schedule", "cancel_schedule"]
+    difficulty: hard
+    bloom_level: 4
+    bloom_tag: analyze
+
+# ---- 类别 5：动态多步修改 ----
+multi_step_modify:
+  - input: "帮我设一个10分钟后的提醒，不对，改成20分钟，算了还是30分钟吧"
+    expected_action: "create_schedule"
+    expected_final_delay_minutes: 30
+    difficulty: hard
+    bloom_level: 4
+    bloom_tag: analyze
+
+  - input: "先设个5分钟提醒，不对取消，再设10分钟，再取消，最后设15分钟"
+    expected_action: "create_schedule"
+    expected_final_delay_minutes: 15
+    difficulty: hard
+    bloom_level: 4
+    bloom_tag: analyze
+
+# ---- 类别 6：模糊/口语化时间 ----
+fuzzy_time:
+  - input: "明早提醒我买菜"
+    expected_action: "create_schedule"
+    note: "时间模糊（明早），应推断合理默认值并创建"
+    difficulty: medium
+    bloom_level: 2
+    bloom_tag: understand
+
+  - input: "晚点提醒我回消息"
+    expected_action: "create_schedule"
+    note: "时间模糊，应按常识推断合理延迟（如30分钟）并创建"
+    difficulty: hard
+    bloom_level: 5
+    bloom_tag: evaluate
+
+  - input: "过一会儿提醒我关火"
+    expected_action: "create_schedule"
+    note: "时间模糊但紧急（关火），应按常识推断短延迟并创建"
+    difficulty: hard
+    bloom_level: 5
+    bloom_tag: evaluate
+
+
+manual_test_prompts:
+  - id: "MT-01"
+    description: "高频重复任务"
+    prompts:
+      - "接下来15分钟内，每5分钟给我发一条消息"
+    observe:
+      - "是否创建了3次触发（5/10/15分钟后）"
+      - "实际触发时间是否准确"
+      - "消息内容是否合理"
+
+  - id: "MT-02"
+    description: "创建后立即取消"
+    prompts:
+      - "5分钟后提醒我喝水"
+      - "刚才那个取消掉"
+    observe:
+      - "第一条：是否成功创建提醒"
+      - "第二条：是否正确识别并取消了刚创建的任务"
+      - "是否真的不触发了"
+
+  - id: "MT-03"
+    description: "动态修改三次"
+    prompts:
+      - "10分钟后提醒我"
+      - "改成20分钟"
+      - "算了还是30分钟"
+    observe:
+      - "每次修改后，旧任务是否取消"
+      - "最终是否只有30分钟的任务存在"
+      - "最终触发时间是否正确"
+
+  - id: "MT-04"
+    description: "一句话里创建加取消"
+    prompts:
+      - "把明天早上8点的会议提醒取消，改成9点"
+    observe:
+      - "是否识别出两个动作（取消+创建）"
+      - "取消的是否是8点的任务"
+      - "新建的是否是9点的任务"
+
+  - id: "MT-05"
+    description: "跨天边界"
+    prompts:
+      - "今晚11点55分提醒我，然后明天早上6点再提醒我"
+    observe:
+      - "是否创建了两条提醒"
+      - "时间是否跨天正确处理"
+      - "两条提醒是否都实际触发"
+    note: "多次犹豫修改，最终应以最后一次为准"
+    difficulty: hard
+
+  - input: "每小时提醒我一次，不对，改成每两小时，而且只在工作时间"
+    expected_action: "create_recurring"
+    expected_final_interval_hours: 2
+    expected_time_range: ["09:00", "18:00"]
+    note: "连续修改频率和时间范围"
+    difficulty: hard
+
+# ---- 类别 7：边界/异常 ----
+# 测试模型能否正确分辨：信息不足→clarify / 不合理→reject / 模糊但可执行→create
+edge_cases:
+  - input: "昨天下午3点提醒我开会"
+    expected_action: "reject"
+    note: "过去的时间，应拒绝"
+    difficulty: easy
+    bloom_level: 5
+    bloom_tag: evaluate
+
+  - input: "提醒我"
+    expected_action: "clarify"
+    note: "缺少时间和内容，信息严重不足"
+    difficulty: easy
+    bloom_level: 5
+    bloom_tag: evaluate
+
+  - input: "随便什么时候提醒我就行"
+    expected_action: "clarify"
+    note: "时间和内容都未明确指定，信息不足以创建"
+    difficulty: medium
+    bloom_level: 5
+    bloom_tag: evaluate
+
+  - input: "0分钟后提醒我"
+    expected_action: "reject"
+    note: "无意义的延迟，应拒绝"
+    difficulty: easy
+    bloom_level: 5
+    bloom_tag: evaluate
+
+  - input: "3000年1月1日提醒我"
+    expected_action: "reject"
+    note: "不合理的未来时间，应拒绝"
+    difficulty: medium
+    bloom_level: 5
+    bloom_tag: evaluate
+
+  - input: "帮我设100个提醒，每个间隔1秒"
+    expected_action: "reject"
+    note: "不合理的批量请求，应拒绝"
+    difficulty: hard
+    bloom_level: 6
+    bloom_tag: create
+
+  - input: "如果明天下雨就提醒我带伞"
+    expected_action: "reject"
+    note: "条件触发型提醒，需要天气API等外部事件监听，超出时间调度能力边界"
+    difficulty: medium
+    bloom_level: 5
+    bloom_tag: evaluate

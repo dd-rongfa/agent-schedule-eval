@@ -1,0 +1,290 @@
+# 人工标注 v5 — 边界聚焦版（9 条）
+# 用途：验证 LLM-as-a-Judge (GEval) 与人类评分的一致性
+# 抽样策略：只标注 machine_score ≤ 0.8 的案例（fail + border），跳过明确 pass
+#
+# ════════════════════════════════════════════════════
+# 评分量表 (Scoring Rubric) — 3 维度，各 0 / 0.5 / 1
+# ════════════════════════════════════════════════════
+#
+# 维度 A：动作识别
+#   1.0 = 选对了正确的动作（create_schedule / create_recurring / cancel_schedule / clarify / reject）
+#   0.5 = 动作部分正确（如复合指令只完成了一部分）
+#   0.0 = 动作完全错误
+#
+# 维度 B：参数正确
+#   1.0 = 时间、内容、周期规则等参数全部正确
+#   0.5 = 部分正确（如时间对了但内容漏了）
+#   0.0 = 参数错误或完全忽略
+#
+# 维度 C：行为合理
+#   1.0 = 不编造信息 + 该追问时追问、不该追问时不追问
+#   0.5 = 轻微问题（如不必要的追问，但不影响核心判断）
+#   0.0 = 严重编造 / 该追问没追问 / 不该追问却追问
+#
+# human_score 由脚本自动计算 = (dim_A + dim_B + dim_C) / 3
+# human_pass 由脚本自动计算 = human_score >= 0.7
+# 你只需要填 dim_A, dim_B, dim_C (各 0 / 0.5 / 1) 和 rationale
+# ════════════════════════════════════════════════════
+
+annotations:
+
+  # ── Fail 区 (machine_score ≤ 0.2) ──────────────────
+
+  - id: "A01"
+    input: "0分钟后提醒我"
+    difficulty: easy
+    actual_output: |
+      动作：create_schedule  
+      时间参数：0分钟后（立即提醒）  
+      提醒内容：用户未指定内容，将使用默认提醒  
+      追问：需要提醒您做什么？
+    expected: "期望动作: reject；备注: 无意义的延迟，应拒绝"
+    machine_score: 0.2
+    machine_pass: false
+    dim_A: 0
+    dim_B: 0
+    dim_C: 0
+    rationale: "无意义的延迟"
+
+  - id: "A02"
+    input: "3000年1月1日提醒我"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_schedule 动作。  
+      时间参数：3000年1月1日（具体日期）。  
+      提醒内容：用户未指定，我会提醒"您设置的提醒时间到了"。  
+      信息不足：需要追问提醒的具体内容（例如"提醒您做什么？"）。
+    expected: "期望动作: reject；备注: 不合理的未来时间，应拒绝"
+    machine_score: 0.0
+    machine_pass: false
+    dim_A: 0
+    dim_B: 0
+    dim_C: 0
+    rationale: "动作错误; 时间不合理; 无需追问"
+
+  - id: "A03"
+    input: "帮我设100个提醒，每个间隔1秒"
+    difficulty: hard
+    actual_output: |
+      我会调用 **create_recurring** 动作。  
+      - **时间参数**：从当前时间开始，每1秒重复一次，共100次。  
+      - **提醒内容**：用户未指定，我会追问："请告诉我提醒的内容是什么？"  
+      - **追问**：因为缺少提醒的具体内容，需要用户补充。
+    expected: "期望动作: reject；备注: 不合理的批量请求，应拒绝"
+    machine_score: 0.2
+    machine_pass: false
+    dim_A: 0
+    dim_B: 0
+    dim_C: 0
+    rationale: "动作错误; 不合理的批量请求; 可以提出拒绝理由"
+
+  # ── Border 区 (machine_score 0.4 ~ 0.8) ────────────
+
+  - id: "A04"
+    input: "过一会儿提醒我拿快递"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_schedule 动作。
+      
+      时间参数：几分钟后（具体时间需要用户确认，例如"10分钟后"或"半小时后"）。
+      提醒内容：拿快递。
+      
+      信息不足：需要追问具体时间，例如"请问具体是几分钟后提醒您？"
+    expected: "期望动作: create_schedule；备注: 时间模糊但紧急（拿快递），应按常识推断短延迟并创建"
+    machine_score: 0.4
+    machine_pass: false
+    dim_A: 0
+    dim_B: 0
+    dim_C: 1
+    rationale: "动作错误，追问具体时间正确"
+
+  - id: "A05"
+    input: "先设个5分钟提醒，不对取消，再设10分钟，再取消，最后设15分钟"
+    difficulty: hard
+    actual_output: |
+      动作：create_schedule  
+      时间参数：5分钟后  
+      提醒内容：未指定，需要追问  
+      我会追问：5分钟后的提醒内容是什么？
+    expected: "期望动作: create_schedule"
+    machine_score: 0.4
+    machine_pass: false
+    dim_A: 1
+    dim_B: 0
+    dim_C: 0.5
+    rationale: "动作部分正确; 时间识别不完整; 可以不追问"
+
+  - id: "A06"
+    input: "昨天下午3点提醒我开会"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_schedule 动作。  
+      时间参数：昨天下午3点（已过去，无法设置）。  
+      提醒内容：开会。  
+      由于时间已过，我会追问：是否需要设置未来的提醒？
+    expected: "期望动作: reject；备注: 过去的时间，应拒绝"
+    machine_score: 0.6
+    machine_pass: false
+    dim_A: 0   # ← 动作选 create 但识别了时间已过
+    dim_B: 0.5   # ← 时间识别正确但方向错
+    dim_C: 1   # ← 追问了是否设未来提醒
+    rationale: "动作错误; 时间识别部分正确; 追问没有指出时间已过"
+
+  - id: "A07"
+    input: "明早提醒我买菜"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_schedule 动作。
+      时间参数：明天早上（默认时间，如 8:00）。
+      提醒内容：买菜。
+      信息充足，无需追问。
+    expected: "期望动作: create_schedule；备注: 明早是模糊时间，合理范围即可"
+    machine_score: 0.8
+    machine_pass: true
+    dim_A: 1   # ← create_schedule 正确
+    dim_B: 1   # ← 明早→默认8:00 是否合理？
+    dim_C: 0.5   # ← 说"无需追问"但时间是自己猜的
+    rationale: "建议追问具体时间，但默认值也有点合理"
+
+  - id: "A08"
+    input: "随便什么时候提醒我就行"
+    difficulty: medium
+    actual_output: |
+      我会调用 clarify 动作，因为用户没有提供具体的时间或内容。  
+      我会追问："请问您希望我提醒什么内容？以及具体在什么时间提醒？"
+    expected: "期望动作: clarify；备注: 时间和内容都未明确指定，信息不足以创建"
+    machine_score: 0.8
+    machine_pass: true
+    dim_A: 1   # ← clarify 是否算正确？用户说"随便"
+    dim_B: 1   # ← 没有参数可评（N/A → 给 1？）
+    dim_C: 1   # ← 追问合理但用户说了"随便"
+    rationale: ""
+
+  # A09 已删除：与 A06 input 完全相同，属于重复观测
+
+  # ── Pass 锚点 (machine_score = 1.0，无争议) ────────
+
+  - id: "A10"
+    input: "5分钟后提醒我喝水"
+    difficulty: easy
+    actual_output: |
+      我会调用 create_schedule 动作。
+      时间参数：5分钟后。
+      提醒内容：喝水。
+      行动：创建一条5分钟后的单次提醒，提醒内容是"喝水"。
+    expected: "期望动作: create_schedule；延迟分钟: 5"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "动作正确; 时间+内容正确; 无编造"
+
+  - id: "A11"
+    input: "接下来15分钟内，每5分钟给我发一条消息"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_recurring 动作。
+      时间参数：从当前时间开始，每5分钟重复一次，持续15分钟（共3次）。
+      提醒内容：用户未指定，我会追问"您希望我每5分钟提醒您什么内容？"
+    expected: "期望动作: create_recurring；间隔分钟: 5；总次数: 3"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "create_recurring正确; 间隔+次数正确; 合理追问内容"
+
+  - id: "A12"
+    input: "把明天早上8点的会议提醒取消，改成9点"
+    difficulty: hard
+    actual_output: |
+      我会调用 cancel_schedule 动作，取消明天早上8点的会议提醒。
+      然后调用 create_schedule 动作，设置明天早上9点的提醒，提醒内容为"会议"。
+    expected: "期望动作: ['cancel_schedule', 'create_schedule']"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "cancel+create两步正确; 时间参数正确; 无编造"
+
+  - id: "A13"
+    input: "下午3点半叫我一声"
+    difficulty: easy
+    actual_output: |
+      我会调用 create_schedule 动作。
+      时间参数：今天下午3点30分。
+      提醒内容：叫你一声。
+      信息充足，无需追问。
+    expected: "期望动作: create_schedule；时间: 今天15:30"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "动作正确; 时间+内容正确; 无编造"
+
+  - id: "A14"
+    input: "每天早上9点提醒我打卡"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_recurring 动作。
+      时间参数：每天上午9点（周期规则：每天重复）。
+      提醒内容：打卡。
+      信息充足，无需追问。
+    expected: "期望动作: create_recurring；周期: 每天09:00"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "create_recurring正确; 周期+时间正确; 无编造"
+
+  - id: "A15"
+    input: "取消我明天早上的提醒"
+    difficulty: easy
+    actual_output: |
+      我会调用 cancel_schedule 动作。
+      时间参数：明天早上（需要用户进一步明确具体时间，如"明天早上8点"）。
+      提醒内容：未指定具体内容，需要用户确认要取消哪个提醒。
+      我会追问："请问要取消明天早上几点的哪个提醒？请提供具体时间和内容以便我准确取消。"
+    expected: "期望动作: cancel_schedule"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "cancel正确; 合理追问具体时间; 无编造"
+
+  - id: "A16"
+    input: "每周一和周五下午6点提醒我写周报"
+    difficulty: hard
+    actual_output: |
+      我会调用 create_recurring 动作。
+      时间参数：每周一和周五下午6点（周期规则为每周重复）。
+      提醒内容：写周报。
+      信息充足，无需追问。
+    expected: "期望动作: create_recurring；周期: 周一+周五 18:00"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "create_recurring正确; 复杂周期规则正确; 无编造"
+
+  - id: "A17"
+    input: "晚点提醒我回消息"
+    difficulty: medium
+    actual_output: |
+      我会调用 create_schedule 动作。
+      时间参数：需要用户明确具体时间（如"几分钟后"或"几点"）。
+      提醒内容：回消息。
+      信息不足，我会追问："请问具体什么时候提醒您回消息？比如几分钟后，还是具体几点？"
+    expected: "期望动作: create_schedule；备注: 时间模糊，应按常识推断合理延迟并创建"
+    machine_score: 1.0
+    machine_pass: true
+    dim_A: 1
+    dim_B: 1
+    dim_C: 1
+    rationale: "动作正确; 合理追问具体时间; 无编造"

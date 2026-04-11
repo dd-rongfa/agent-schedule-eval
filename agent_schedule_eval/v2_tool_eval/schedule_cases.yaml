@@ -1,0 +1,987 @@
+# ==========================================
+# Agent 定时任务评测用例集 — 三轴分类体系 (v2.1)
+# ==========================================
+#
+# 方法论演进：
+#   v1/v2 初版使用 Bloom's Taxonomy 六层分类，实践中发现不适用于 Agent 评测：
+#   - L1"记忆"≠最简单（"设个闹钟"信息缺失，模型追问是正确行为却判 fail）
+#   - L4"分析"拆成多轮后反而简单（每轮只做一件事）
+#   - L5"评价"不是"更难"，是不同类型的能力
+#   核心矛盾：Bloom 把认知层级和信息完整度混为一谈。
+#
+# 借鉴业界 benchmark 设计：
+#   - τ-bench (Sierra 2024): 数据库端态断言，背景复杂度决定难度，pass^k 可靠性
+#   - MINT (ICLR 2024): 多轮交互 × 工具使用 × 语言反馈
+#   - ToolBench: tool_count × API_complexity × parameter_count
+#
+# 自研三轴分类：
+#   轴1 operation:  操作类型
+#       direct   — 信息完整，直接执行
+#       clarify  — 信息不全，需追问后执行
+#       compound — 多步组合操作（取消+创建、查询+删除）
+#       implicit — 隐性意图（"药吃过了" → 取消提醒）
+#   轴2 context:    背景复杂度（mock 提醒列表）
+#       empty    — 无已有提醒
+#       simple   — 2-3 个无歧义提醒
+#       rich     — 5+ 个提醒含相似项/干扰项
+#   轴3 turns:      对话模式
+#       single       — 一条消息搞定
+#       clarify_turn — 模型追问 → 用户补充 → 执行
+#       correct_turn — 用户反悔 → 修改 → 再修改
+#
+# 旧 Bloom 标签保留（bloom_level / bloom_tag）以便回溯对比。
+# ==========================================
+
+# ============================================================
+# direct — 信息完整，直接执行
+# ============================================================
+direct:
+  # --- 创建类（一次性） ---
+  - input: "5分钟后提醒我喝水"
+    expected_action: "create_schedule"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "最简单的创建"
+
+  - input: "10分钟后提醒我吃药"
+    expected_action: "create_schedule"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "信息完整的标准创建"
+
+  - input: "明天早上8点提醒我开会"
+    expected_action: "create_schedule"
+    expected_time: "08:00"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 2
+    difficulty: easy
+    test_goal: "绝对时间创建"
+
+  - input: "下午3点半叫我一声"
+    expected_action: "create_schedule"
+    expected_time: "15:30"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 2
+    difficulty: easy
+    test_goal: "12h→24h 转换 + '叫我'=提醒"
+
+  - input: "今晚23:59提醒我发邮件"
+    expected_action: "create_schedule"
+    expected_time: "23:59"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 3
+    difficulty: easy
+    test_goal: "精确时间不应被圆整"
+
+  - input: "5分钟后提醒我喝咖啡"
+    expected_action: "create_schedule"
+    expected_delay_minutes: 5
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 3
+    difficulty: easy
+    test_goal: "delay_minutes 精确输出"
+
+  # --- 创建类（周期性） ---
+  - input: "每天早上9点提醒我打卡"
+    expected_action: "create_recurring"
+    expected_recurrence: "daily"
+    expected_time: "09:00"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 3
+    difficulty: medium
+    test_goal: "daily 周期任务参数完整"
+
+  - input: "每周一和周五下午6点提醒我写周报"
+    expected_action: "create_recurring"
+    expected_recurrence: "weekly"
+    expected_days: ["monday", "friday"]
+    expected_time: "18:00"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 3
+    difficulty: hard
+    test_goal: "多天 weekly + 绝对时间"
+
+  - input: "每隔90分钟提醒我活动一下，连续提醒4次"
+    expected_action: "create_recurring"
+    expected_interval_minutes: 90
+    expected_total_count: 4
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 3
+    difficulty: medium
+    test_goal: "非整小时间隔 + 次数限制"
+
+  # --- 查询类 ---
+  - input: "我有哪些提醒"
+    expected_action: "list_schedules"
+    operation: direct
+    context: simple
+    turns: single
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "基本查询意图"
+
+  - input: "明天有什么安排"
+    expected_action: "list_schedules"
+    operation: direct
+    context: simple
+    turns: single
+    bloom_level: 2
+    difficulty: easy
+    test_goal: "带时间过滤的查询"
+
+  # --- 取消类 ---
+  - input: "帮我把下午的会议提醒删掉"
+    expected_action: "cancel_schedule"
+    operation: direct
+    context: simple
+    turns: single
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "信息较完整的取消"
+
+  - input: "取消那个提醒"
+    expected_action: "cancel_schedule"
+    operation: direct
+    context: simple
+    turns: single
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "模糊取消（背景只有1条，无歧义）"
+
+# ============================================================
+# clarify — 信息不全，追问后执行
+# 每个 case 都带 user_followups，模型追问→用户回答→执行→断言
+# ============================================================
+clarify:
+  - input: "设个闹钟"
+    expected_action: "create_schedule"
+    user_followups:
+      - "明早7点，提醒我起床"
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "极简输入→追问→补全→执行"
+
+  - input: "每天早上叫我起床"
+    expected_action: "create_recurring"
+    user_followups:
+      - "7点吧"
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "周期意图缺时间→追问→执行"
+
+  - input: "到点了叫我喝水"
+    expected_action: "create_schedule"
+    expected_action_any: ["create_schedule", "create_recurring"]
+    user_followups:
+      - "下午3点"
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "口语模糊时间→追问→补充→执行（create_recurring也合理）"
+
+  - input: "明早提醒我买菜"
+    expected_action: "create_schedule"
+    user_followups:
+      - "8点"
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 2
+    difficulty: easy
+    test_goal: "'明早'模糊→追问确切时间→执行"
+
+  - input: "晚点提醒我回消息"
+    expected_action: "create_schedule"
+    user_followups:
+      - "2小时后吧"
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 2
+    difficulty: medium
+    test_goal: "'晚点'太模糊→追问→补时间→执行"
+
+  - input: "提醒我"
+    expected_action: "create_schedule"
+    user_followups:
+      - "下午4点提醒我取快递"
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 1
+    difficulty: easy
+    test_goal: "极简（缺时间+内容）→追问→补全→执行"
+
+  - input: "接下来15分钟内，每5分钟给我发一条消息"
+    expected_action: "create_recurring"
+    user_followups:
+      - "内容就是'该休息了'，按刚才说的每5分钟提醒一次就行"
+    expected_interval_minutes: 5
+    expected_total_count: 3
+    operation: clarify
+    context: empty
+    turns: clarify_turn
+    bloom_level: 3
+    difficulty: medium
+    test_goal: "推算次数 + 追问具体内容"
+
+# ============================================================
+# compound — 多步组合操作（单轮指令触发多个工具调用）
+# ============================================================
+compound:
+  - input: "把明天早上8点的会议提醒取消，改成9点"
+    expected_actions: ["cancel_schedule", "create_schedule"]
+    expected_new_time: "09:00"
+    operation: compound
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "一句话拆解：取消+创建"
+
+  - input: "先帮我设一个明天下午3点的提醒开会，然后把今天下午那个取消"
+    expected_actions: ["create_schedule", "cancel_schedule"]
+    operation: compound
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "识别动作执行顺序"
+
+  - input: "把每天9点的打卡提醒改到8点半，然后再加一个每周五下午5点的周报提醒"
+    expected_actions: ["cancel_schedule", "create_recurring", "create_recurring"]
+    operation: compound
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "修改+新增混合（三步拆解）"
+
+  - input: "明天的提醒不要了，后天的保留，大后天再加一个"
+    expected_actions: ["cancel_schedule", "create_schedule"]
+    user_followups:
+      - "大后天上午10点，提醒我去银行"
+    operation: compound
+    context: simple
+    turns: clarify_turn
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "选择性操作（保留/取消/创建）+ 追问大后天内容"
+
+  - input: "查一下我有没有重复的提醒，如果有就只保留一个"
+    expected_actions: ["list_schedules", "cancel_schedule"]
+    operation: compound
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "查询→分析→操作的多步推理链"
+
+  - input: "我今天还有什么事"
+    expected_actions: ["get_current_time", "list_schedules"]
+    current_time: "2026-04-10 15:00"
+    operation: compound
+    context: simple
+    turns: single
+    bloom_level: 2
+    difficulty: medium
+    test_goal: "隐性查询：日常口语触发 get_time + list"
+
+  # --- 单条消息版 correction（保留原始难题） ---
+  - input: "帮我设一个10分钟后的提醒喝水，不对，改成20分钟，算了还是30分钟吧"
+    expected_action: "create_schedule"
+    expected_final_delay_minutes: 30
+    operation: compound
+    context: empty
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "单消息连续修改，识别最终意图（30分钟）"
+
+  - input: "先设个5分钟提醒吃药，不对取消，再设10分钟，再取消，最后设15分钟"
+    expected_action: "create_schedule"
+    expected_final_delay_minutes: 15
+    operation: compound
+    context: empty
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "单消息多次推翻，追踪最终状态（15分钟）"
+
+# ============================================================
+# correct_turn — 多轮修改（用户反悔/纠正）
+# ============================================================
+correct_turn:
+  - input: "帮我设一个10分钟后的提醒，提醒我喝水"
+    user_followups:
+      - "不对，改成20分钟"
+      - "算了还是30分钟吧"
+    expected_actions: ["create_schedule", "cancel_schedule"]
+    expected_final_delay_minutes: 30
+    operation: compound
+    context: empty
+    turns: correct_turn
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "多轮连续修改（3轮→最终30分钟）"
+    expected_end_state:
+      task_count: 1
+      last_task_content: "喝水"
+
+  - input: "帮我设个5分钟后的提醒，提醒我吃药"
+    user_followups:
+      - "不对取消掉，设10分钟的"
+      - "还是取消，最后设15分钟的"
+    expected_actions: ["create_schedule", "cancel_schedule"]
+    expected_final_delay_minutes: 15
+    operation: compound
+    context: empty
+    turns: correct_turn
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "多轮反复推翻（3轮→最终15分钟）"
+    expected_end_state:
+      task_count: 1
+      last_task_content: "吃药"
+
+# ============================================================
+# implicit — 隐性意图（用户不说"提醒/取消"，Agent 需推导）
+# ============================================================
+implicit:
+  - input: "会开完了"
+    expected_actions: ["list_schedules", "update_schedule"]
+    current_time: "2026-04-10 15:00"
+    operation: implicit
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "隐性完成→查询→标记会议提醒为 completed"
+
+  - input: "药吃过了"
+    expected_actions: ["list_schedules", "update_schedule"]
+    current_time: "2026-04-10 09:30"
+    operation: implicit
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "隐性完成→标记吃药提醒为 completed（单条）"
+
+  - input: "刚收到通知，下午的会取消了"
+    expected_actions: ["list_schedules", "cancel_schedule"]
+    current_time: "2026-04-10 11:00"
+    operation: implicit
+    context: simple
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "外部通知→查询→取消会议提醒"
+
+# ============================================================
+# rich_context — 同样的指令，但背景中有 5+ 条提醒（含干扰/相似项）
+# 用背景复杂度提升难度，而非指令复杂度
+# ============================================================
+rich_context:
+  - input: "药吃过了"
+    expected_actions: ["list_schedules", "update_schedule"]
+    current_time: "2026-04-10 09:30"
+    operation: implicit
+    context: rich
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "3条吃药提醒(早/中/晚)，应根据时间标记最近已过的那条（09:00）为 completed"
+    note: "对比 implicit 区的单条版本：这里需要从3条中选择正确的1条标记完成"
+    mock_tasks:
+      - {task_id: "t-1", content: "吃药(早)", time: "09:00", recurrence: null}
+      - {task_id: "t-2", content: "吃药(午)", time: "12:00", recurrence: null}
+      - {task_id: "t-3", content: "吃药(晚)", time: "21:00", recurrence: null}
+      - {task_id: "t-4", content: "喝水", time: "10:00", recurrence: "daily"}
+      - {task_id: "t-5", content: "开会", time: "14:00", recurrence: null}
+    expected_update_task_id: "t-1"
+
+  - input: "会开完了"
+    expected_actions: ["list_schedules", "update_schedule"]
+    current_time: "2026-04-10 15:30"
+    operation: implicit
+    context: rich
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "多条会议提醒中，标记已结束的14:00为 completed，不动16:00的"
+    mock_tasks:
+      - {task_id: "t-1", content: "部门周会", time: "14:00", recurrence: null}
+      - {task_id: "t-2", content: "客户会议", time: "16:00", recurrence: null}
+      - {task_id: "t-3", content: "喝水", time: "09:00", recurrence: "daily"}
+      - {task_id: "t-4", content: "喝水", time: "15:00", recurrence: "daily"}
+      - {task_id: "t-5", content: "吃药", time: "12:00", recurrence: null}
+    expected_update_task_id: "t-1"
+
+  - input: "取消那个提醒"
+    expected_action: "cancel_schedule"
+    user_followups:
+      - "就是那个开会的"
+    operation: clarify
+    context: rich
+    turns: clarify_turn
+    bloom_level: 1
+    difficulty: hard
+    test_goal: "5+条提醒中模糊取消→追问→用户指定→取消"
+    note: "在 rich 背景下，'那个'是歧义的，模型应追问"
+    mock_tasks:
+      - {task_id: "t-1", content: "喝水", time: "09:00", recurrence: "daily"}
+      - {task_id: "t-2", content: "喝水", time: "15:00", recurrence: "daily"}
+      - {task_id: "t-3", content: "开会", time: "14:00", recurrence: null}
+      - {task_id: "t-4", content: "吃药", time: "09:00", recurrence: null}
+      - {task_id: "t-5", content: "打卡", time: "09:00", recurrence: "daily"}
+
+  - input: "部署完了"
+    expected_actions: ["list_schedules", "update_schedule"]
+    current_time: "2026-04-10 16:00"
+    operation: implicit
+    context: rich
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "系统运维场景：程序部署完成→标记部署检查提醒为 completed"
+    mock_tasks:
+      - {task_id: "t-1", content: "检查部署状态", time: "16:30", recurrence: null}
+      - {task_id: "t-2", content: "检查部署状态", time: "17:00", recurrence: null}
+      - {task_id: "t-3", content: "喝水", time: "09:00", recurrence: "daily"}
+      - {task_id: "t-4", content: "站会", time: "10:00", recurrence: "daily"}
+      - {task_id: "t-5", content: "吃药", time: "12:00", recurrence: null}
+
+  - input: "查一下我有没有重复的提醒，如果有就只保留一个"
+    expected_actions: ["list_schedules", "cancel_schedule"]
+    operation: compound
+    context: rich
+    turns: single
+    bloom_level: 4
+    difficulty: hard
+    test_goal: "rich背景下去重：2条喝水09:00完全重复，应取消1条"
+    mock_tasks:
+      - {task_id: "t-1", content: "喝水", time: "09:00", recurrence: "daily"}
+      - {task_id: "t-2", content: "喝水", time: "09:00", recurrence: "daily"}
+      - {task_id: "t-3", content: "开会", time: "14:00", recurrence: null}
+      - {task_id: "t-4", content: "吃药", time: "09:00", recurrence: null}
+      - {task_id: "t-5", content: "打卡", time: "09:00", recurrence: "daily"}
+
+# ============================================================
+# tool_selection — 工具干扰（多工具场景下选对工具）
+# 新增工具：manage_todo, play_media, open_app
+# ============================================================
+tool_selection:
+  - input: "帮我记一下明天要买牛奶"
+    expected_action: "create_todo"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: medium
+    test_goal: "'记一下'→待办事项，不应创建定时提醒"
+
+  - input: "三点提醒我开会"
+    expected_action: "create_schedule"
+    expected_time: "15:00"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: medium
+    test_goal: "'提醒我'+具体时间→定时提醒，不是待办"
+
+  - input: "播放庆余年第六集"
+    expected_action: "play_media"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: easy
+    test_goal: "明确的媒体播放指令"
+
+  - input: "帮我把吃药的提醒去掉"
+    expected_action: "cancel_schedule"
+    operation: direct
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "'提醒去掉'→取消日程提醒，不是删除待办"
+    mock_tasks:
+      - {task_id: "t-1", content: "吃药", time: "09:00", recurrence: null}
+      - {task_id: "t-2", content: "喝水", time: "15:00", recurrence: "daily"}
+
+  - input: "刚才的待办做完了"
+    expected_action: "complete_todo"
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "'待办做完了'→完成待办，不是取消提醒"
+    mock_todos:
+      - {todo_id: "todo-1", content: "写周报", status: "pending", due_date: null}
+
+  - input: "帮我打开抖音"
+    expected_action: "open_app"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: easy
+    test_goal: "'打开'+应用名→启动应用"
+
+  - input: "打开D盘"
+    expected_action: "bash"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: medium
+    test_goal: "打开磁盘目录→应使用 bash(start D:\\)，不是 open_app"
+
+  - input: "把微信关了"
+    expected_action: "control_window"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: medium
+    test_goal: "关闭应用→应使用 control_window(close)，不是 bash"
+
+# ============================================================
+# temporal_reasoning — 时序推理（跨工具的时间/状态推理）
+# ============================================================
+temporal_reasoning:
+  - input: "上次看到第几集了"
+    expected_action: "get_play_history"
+    operation: direct
+    context: simple
+    turns: single
+    difficulty: easy
+    test_goal: "查询播放进度→调用播放历史"
+
+  - input: "继续看庆余年"
+    expected_action: "play_media"
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "隐性续播（点名）→应调用 play_media（可能先查历史）"
+    mock_media:
+      - {media_id: "media-1", title: "庆余年", type: "tv", current_episode: 5, total_episodes: 46}
+
+  - input: "接着看吧"
+    expected_action: "play_media"
+    expected_action_any: ["play_media", "get_play_history"]
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: hard
+    test_goal: "隐性续播（不点名）→应先查历史再播放，或直接续播"
+    mock_media:
+      - {media_id: "media-1", title: "庆余年", type: "tv", current_episode: 5, total_episodes: 46}
+
+  - input: "那个搞定了"
+    expected_action: "complete_todo"
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "隐性完成（1条待办→无歧义直接完成）"
+    mock_todos:
+      - {todo_id: "todo-1", content: "写周报", status: "pending", due_date: null}
+
+  - input: "那个搞定了"
+    expected_action: "complete_todo"
+    user_followups:
+      - "写周报那个"
+    operation: implicit
+    context: rich
+    turns: clarify_turn
+    difficulty: hard
+    test_goal: "隐性完成（3条待办→需追问哪个）"
+    mock_todos:
+      - {todo_id: "todo-1", content: "写周报", status: "pending", due_date: null}
+      - {todo_id: "todo-2", content: "买菜", status: "pending", due_date: null}
+      - {todo_id: "todo-3", content: "回邮件", status: "pending", due_date: null}
+
+# ============================================================
+# asr_tolerance — ASR 容错（语音识别错误下的意图理解）
+# 配对设计：每个 ASR 错误 case 都有一个正常版本做对照
+# ============================================================
+asr_tolerance:
+  # ---- 对照组：正常输入 ----
+  - input: "打开地图"
+    expected_action: "open_app"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: easy
+    test_goal: "正常对照：打开地图（与'打开地盘'对比）"
+
+  - input: "定个闹钟八点"
+    expected_action: "create_schedule"
+    expected_time: "08:00"
+    user_followups:
+      - "早上八点，提醒我吃药"
+    operation: direct
+    context: empty
+    turns: clarify_turn
+    difficulty: easy
+    test_goal: "正常对照：定闹钟八点，追问后补充内容（与'定个钟八点'对比）"
+
+  - input: "打开D盘看看"
+    expected_action: "bash"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: easy
+    test_goal: "正常对照：打开D盘文件夹（与'打开地盘'的歧义对比）"
+
+  # ---- ASR 错误组 ----
+  - input: "打开地盘"
+    expected_action: "open_app"
+    expected_action_any: ["open_app", "bash"]
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: hard
+    test_goal: "ASR谐音：地盘→地图，应识别并打开地图（也可能理解为D盘用bash打开）"
+
+  - input: "打开抖影"
+    expected_action: "open_app"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: hard
+    test_goal: "ASR谐音：抖影→抖音，应识别并打开抖音"
+
+  - input: "定个钟八点"
+    expected_action: "create_schedule"
+    expected_time: "08:00"
+    user_followups:
+      - "早上八点，提醒我吃药"
+    operation: direct
+    context: empty
+    turns: clarify_turn
+    difficulty: hard
+    test_goal: "ASR吞字：定个钟→定个闹钟，追问后补充内容（与正常版对比）"
+
+  - input: "帮我放个庆余年"
+    expected_action: "play_media"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: medium
+    test_goal: "口语化：放→播放，应识别为媒体播放"
+
+  - input: "看一下名天有啥安排"
+    expected_action: "list_schedules"
+    operation: direct
+    context: simple
+    turns: single
+    difficulty: hard
+    test_goal: "ASR谐音：名天→明天，应查询明天日程"
+
+# ============================================================
+# boundary — 边界/异常场景（原 L5/L6，不参与工具调用主断言）
+# ============================================================
+boundary:
+  - input: "今天夜里12点提醒我抢票"
+    expected_action: "clarify_or_create"
+    expected_time: "00:00"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: medium
+    test_goal: "'夜里12点'有歧义（0点 or 24点），模型可追问或直接创建"
+
+  - input: "昨天下午3点提醒我开会"
+    expected_action: "reject_or_clarify"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: medium
+    test_goal: "过去时间应拒绝或追问"
+
+  - input: "2099年1月1日零点提醒我看烟花"
+    expected_action: "reject_or_clarify"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: medium
+    test_goal: "超远未来应拒绝或追问"
+
+  - input: "过一会儿提醒我关火"
+    expected_action: "clarify_or_create"
+    operation: clarify
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: hard
+    test_goal: "紧急性判断：关火可能紧急"
+
+  - input: "随便什么时候提醒我就行"
+    expected_action: "clarify_or_create"
+    operation: clarify
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: medium
+    test_goal: "完全无时间信息的决策"
+
+  - input: "帮我设个5分钟后的提醒"
+    expected_action: "create_schedule"
+    current_time: "2026-04-10 23:57"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: hard
+    test_goal: "23:57+5min 跨午夜"
+
+  - input: "我买了4月12号凌晨2点的火车票，帮我提前两小时提醒"
+    expected_action: "create_schedule"
+    expected_time: "00:00"
+    current_time: "2026-04-11 20:00"
+    operation: direct
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: hard
+    test_goal: "凌晨出行+显式提前量→确定性断言 time=00:00"
+
+  - input: "我明天早上有个很重要的面试，好紧张啊"
+    expected_action: "suggest_or_clarify"
+    operation: implicit
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: hard
+    test_goal: "隐含需求识别：暗示需要面试提醒"
+
+  - input: "下周三要交季度报告，我还没开始写呢"
+    expected_action: "suggest_or_clarify"
+    operation: implicit
+    context: empty
+    turns: single
+    bloom_level: 5
+    difficulty: hard
+    test_goal: "隐含需求：deadline压力→建议设提醒"
+
+# ============================================================
+# complex — 复杂规划场景（原 L6，展示能力上限）
+# ============================================================
+complex:
+  - input: "每两小时提醒我一次，但只在工作时间（9点到6点），午休12点到1点跳过"
+    expected_action: "create_recurring"
+    operation: compound
+    context: empty
+    turns: single
+    bloom_level: 6
+    difficulty: hard
+    test_goal: "多约束条件方案设计"
+
+  - input: "我有三个药要吃：A药饭前30分钟，B药饭后1小时，C药睡前。帮我设提醒"
+    expected_actions: ["create_schedule", "create_schedule", "create_schedule"]
+    user_followups:
+      - "早饭8点，午饭12点，晚饭6点，晚上11点睡"
+    operation: compound
+    context: empty
+    turns: clarify_turn
+    bloom_level: 6
+    difficulty: hard
+    test_goal: "多实体+相对时间→追问生活节奏→创建3条"
+
+  - input: "帮我设一个番茄工作法提醒：25分钟工作，5分钟休息，循环4轮后长休15分钟"
+    expected_actions: ["create_recurring", "create_recurring"]
+    operation: compound
+    context: empty
+    turns: single
+    bloom_level: 6
+    difficulty: hard
+    test_goal: "嵌套循环结构"
+
+  - input: "高考倒计时60天，帮我安排：前30天每天晚上复习提醒，后30天早晚各一次，最后一周每两小时一次"
+    expected_actions: ["create_recurring", "create_recurring", "create_recurring"]
+    operation: compound
+    context: empty
+    turns: single
+    bloom_level: 6
+    difficulty: hard
+    test_goal: "三阶段渐进式计划"
+
+# ============================================================
+# 手动实测用例（不参与自动化评测）
+# ============================================================
+manual_test_prompts:
+  - id: "MT-01"
+    description: "高频重复任务是否正确触发"
+    prompts:
+      - "接下来15分钟内，每5分钟给我发一条消息"
+    observe:
+      - "是否创建了3次触发"
+      - "消息内容是否合理"
+
+  - id: "MT-02"
+    description: "创建后立即取消"
+    prompts:
+      - "5分钟后提醒我喝水"
+      - "刚才那个取消掉"
+    observe:
+      - "是否成功创建再取消"
+
+  - id: "MT-03"
+    description: "动态修改三次（已是自动化 correct_turn case）"
+    prompts:
+      - "帮我设一个10分钟后的提醒，提醒我喝水"
+      - "不对，改成20分钟"
+      - "算了还是30分钟吧"
+    observe:
+      - "每次修改后旧任务是否取消"
+      - "最终是否只有30分钟的任务"
+
+  - id: "MT-04"
+    description: "跨天边界时间处理"
+    prompts:
+      - "今晚11点55分提醒我，然后明天早上6点再提醒我"
+    observe:
+      - "是否创建了两条提醒"
+      - "时间是否跨天正确处理"
+
+# ============================================================
+# status_aware — 状态感知决策（v2.1 新增）
+# 提醒带有生命周期状态：pending → triggered → completed / expired
+# 系统负责触发（pending→triggered），大模型负责根据状态做语义决策
+# ============================================================
+status_aware:
+  - input: "药吃过了"
+    expected_action: "update_schedule"
+    expected_status: "completed"
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "已触发的提醒，用户确认完成→应 update 为 completed，不能 cancel"
+    mock_tasks:
+      - {task_id: "sch-1", content: "吃药提醒", time: "08:00", status: "triggered"}
+      - {task_id: "sch-2", content: "喝水", time: "15:00", recurrence: "daily", status: "pending"}
+
+  - input: "刚才下午开会的提醒没看到，5分钟后再提醒我一次"
+    expected_action: "create_schedule"
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "已触发但用户没注意到→应重新创建一条新提醒（含明确内容和时间）"
+    mock_tasks:
+      - {task_id: "sch-1", content: "下午开会", time: "14:00", status: "triggered"}
+
+  - input: "下午的会取消了"
+    expected_action: "cancel_schedule"
+    operation: direct
+    context: simple
+    turns: single
+    difficulty: easy
+    test_goal: "pending 状态的提醒→正常取消"
+    mock_tasks:
+      - {task_id: "sch-1", content: "下午开会", time: "14:00", status: "pending"}
+      - {task_id: "sch-2", content: "喝水", time: "15:00", recurrence: "daily", status: "pending"}
+
+  - input: "取消吃药提醒"
+    expected_action: "cancel_schedule"
+    expected_action_any: ["cancel_schedule", "update_schedule", "list_schedules"]
+    operation: direct
+    context: simple
+    turns: single
+    difficulty: hard
+    test_goal: "已触发的提醒被要求取消→取消或标记完成均可接受"
+    mock_tasks:
+      - {task_id: "sch-1", content: "吃药提醒", time: "08:00", status: "triggered"}
+
+  - input: "还有哪些提醒没发？"
+    expected_action: "list_schedules"
+    operation: direct
+    context: rich
+    turns: single
+    difficulty: medium
+    test_goal: "混合状态下查询→应返回列表并识别出 pending 的"
+    mock_tasks:
+      - {task_id: "sch-1", content: "吃药提醒", time: "08:00", status: "triggered"}
+      - {task_id: "sch-2", content: "下午开会", time: "14:00", status: "pending"}
+      - {task_id: "sch-3", content: "晨跑提醒", time: "07:00", status: "expired"}
+      - {task_id: "sch-4", content: "接孩子", time: "16:30", status: "pending"}
+      - {task_id: "sch-5", content: "买菜", time: "18:00", status: "pending"}
+
+  - input: "早上的健身提醒怎么没响？"
+    expected_action: "list_schedules"
+    expected_action_any: ["list_schedules", "update_schedule"]
+    operation: implicit
+    context: simple
+    turns: single
+    difficulty: hard
+    test_goal: "过期的提醒→应告知已过期，可建议重新设置"
+    mock_tasks:
+      - {task_id: "sch-1", content: "晨跑健身", time: "07:00", status: "expired"}
+      - {task_id: "sch-2", content: "喝水", time: "15:00", recurrence: "daily", status: "pending"}
+
+# ============================================================
+# chain_reasoning — 链式推理（v2.1 新增）
+# 查状态 → 数值推理 → 设提醒。测模型从工具返回数据中推算时间的能力。
+# ============================================================
+chain_reasoning:
+  - input: "评测脚本跑到哪了？跑完了提醒我"
+    expected_actions: ["check_task_status", "create_schedule"]
+    expected_delay_minutes_range: [120, 150]
+    operation: compound
+    context: simple
+    turns: single
+    difficulty: medium
+    test_goal: "查任务进度→计算剩余时间→设定提醒（200/2000完成10%, 15min已过→~135min剩余）"
+    mock_running_tasks:
+      - {task_id: "eval-001", command: "python run_eval.py", status: "running",
+         progress: "200/2000", elapsed_min: 15, log_tail: "Processing batch 4/40..."}
+
+  - input: "脚本跑完没？"
+    expected_action: "check_task_status"
+    operation: direct
+    context: simple
+    turns: single
+    difficulty: easy
+    test_goal: "已完成的任务→查询后告知结果，不应多此一举设提醒"
+    mock_running_tasks:
+      - {task_id: "eval-001", command: "python run_eval.py", status: "completed",
+         progress: "2000/2000", elapsed_min: 142, log_tail: "All done. 2000 samples evaluated."}
+
+  - input: "有什么在跑的任务吗"
+    expected_action: "check_task_status"
+    operation: direct
+    context: empty
+    turns: single
+    difficulty: easy
+    test_goal: "无运行任务→查询后告知当前没有任务"
