@@ -22,3 +22,5 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+v3_live_eval/nanobot/sessions/
