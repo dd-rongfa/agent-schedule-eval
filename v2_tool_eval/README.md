@@ -1,7 +1,15 @@
 # v2 — 多工具多轮 Agent Tool-Calling 评测
 
-> v1 测的是"模型会不会描述意图"，v2 测的是"模型在 20 个工具面前能不能完成查询→执行→验证的多轮链路"。
-> 当前版本覆盖日程、待办、媒体、应用和系统操作五大类工具，70 个确定性断言 case × 4 模型 × 3 轮。
+> v1 测的是"模型会不会描述意图"，v2 测的是"模型在 20 个工具面前能不能正确执行，以及工具出错时能不能发现"。
+
+v2 评测工具调用能力有**两个维度**：
+
+| 维度 | 测什么 | 规模 | 核心指标 |
+|------|--------|------|---------|
+| **正向执行力** | 工具正常时，模型能不能完成查询→执行→验证的多轮链路 | 70 case × 4 模型 × 3 轮 | 通过率 |
+| **异常鲁棒性** | 工具故障时，模型能不能发现异常而非盲目确认成功 | 10 case × 4 模型 × 2 温度 × 3 轮 | 行为检测率 (B) / 结果准确率 (O) |
+
+两个维度**共享同一套基础设施**（agent_loop、20 工具、ToolDispatcher），区别仅在后端是正常的还是注入了故障。就像汽车测试，日常驾驶和碰撞测试是同一个评测阶段的两个维度。
 
 ---
 
@@ -11,17 +19,32 @@ v1 验证了评测框架（Judge 可信度 + Bloom 分层），但它测的是"�
 
 真实的工具调用几乎不是一次请求就完成的。用户说"帮我设个明天的提醒"，正确行为是：先 `get_current_time` 确认今天日期 → 再 `create_schedule` 设提醒 → 可选 `list_schedules` 验证是否创建成功。这条**查询→执行→验证**的多轮链路，加上 tool schema 的结构化约束，是 v1 的单轮文本评测覆盖不到的。
 
-v2 做了三件关键的事：
+而真实系统中工具还可能静默失败、返回错误参数、或部分操作失败。如果模型在工具返回异常时仍然盲目确认成功（action hallucination），用户会收到错误信息却浑然不觉。因此 v2 不仅测"做对"，还测"发现做错"。
+
+v2 做了四件关键的事：
 
 1. **多轮 tool-calling 框架**：`agent_loop.py` 实现多轮循环（最多 10 轮），模型可以持续发起 tool_calls 直到给出最终回复，支持查询→执行→验证的完整链路。
 2. **20 工具的干扰环境**：从 3 个日程工具扩展到 5 大类 20 工具，主动制造相邻工具干扰，逼模型暴露真实路由策略。
 3. **确定性断言替代 LLM Judge**：不再依赖打分器，而是直接断言：调没调工具、调了哪个、参数对不对、顺序对不对。
+4. **故障注入测异常鲁棒性**：`FlakyScheduler` 模拟 4 种工具故障模式，测试模型能否识别异常返回并如实报告。
 
 ---
 
 ## 评测设计
 
-### 1. 三轴分类体系
+### 共享基础设施
+
+两个维度共享同一套工具环境和执行引擎：
+
+- **20 工具**：日程提醒（6）、待办事项（4）、媒体播放（4）、应用操作（2）、系统操作（3）、后台任务（1）
+- **agent_loop**：多轮 tool-calling 循环，最多 10 轮，内置 429/5xx 退避重试
+- **ToolDispatcher**：统一工具路由，正向测试接 `FakeScheduler`（正常后端），异常测试接 `FlakyScheduler`（故障注入后端）
+
+工具由 [mock_tools.py](./eval/mock_tools.py) 里的 Fake backend 记录调用轨迹而不产生真实副作用。
+
+### 维度一：正向执行力（70 case）
+
+#### 三轴分类体系
 
 旧版 Bloom 分层在 Agent 场景里有一个结构性问题：它把"认知层级"和"信息完整度"混在了一起。比如"设个闹钟八点"不一定比"取消明天下午三点的提醒"简单，因为前者信息不完整，合理行为应该是追问。
 
@@ -33,20 +56,7 @@ v2 做了三件关键的事：
 
 这套分类更贴近真实 Agent 失效模式：到底是任务类型难，还是背景干扰多，还是多轮状态容易丢。
 
-### 2. 工具空间
-
-当前一共 20 个工具，分成 6 组：
-
-- 日程提醒（6）：`create_schedule`、`cancel_schedule`、`create_recurring`、`list_schedules`、`update_schedule`、`get_current_time`
-- 待办事项（4）：`create_todo`、`complete_todo`、`list_todos`、`delete_todo`
-- 媒体播放（4）：`play_media`、`pause_media`、`get_play_history`、`list_media_library`
-- 应用操作（2）：`open_app`、`list_apps`
-- 系统操作（3）：`bash`、`find_program`、`control_window`
-- 后台任务（1）：`check_task_status`
-
-这些工具由 [mock_tools.py](./eval/mock_tools.py) 里的 Fake backend 汇总到 `ToolDispatcher`，记录调用轨迹而不产生真实副作用。
-
-### 3. Case 收敛原则
+#### Case 收敛原则
 
 自动化 case 的设计原则只有一句话：**把路堵死，只保留一条可接受答案路径。**
 
@@ -58,7 +68,7 @@ v2 做了三件关键的事：
 
 因此当前 [schedule_cases.yaml](./schedule_cases.yaml) 一共 85 条样例，其中 70 条进入自动化回归（跳过 complex / manual_test_prompts，以及 boundary 中的 clarify/reject 类型）。
 
-### 4. 当前自动化覆盖
+#### 自动化覆盖
 
 | section | yaml 总数 | 自动化 | 说明 |
 |---------|-----------|--------|------|
@@ -78,6 +88,27 @@ v2 做了三件关键的事：
 | manual_test_prompts | 4 | 0 | 手工测试脚本 |
 
 自动化总数：**70 case**（12 个 section）。
+
+### 维度二：异常鲁棒性（10 case）
+
+#### 动机
+
+正向测试中工具总是返回正确结果。但真实系统中工具可能静默失败、返回错误参数、或部分操作失败。如果模型在工具返回异常时仍然盲目确认成功（action hallucination），用户会收到错误信息却浑然不觉。
+
+#### 故障注入设计
+
+`flaky_tools.py` 实现 `FlakyScheduler`，与正向测试的 `FakeScheduler` 接口兼容，通过 `ToolDispatcher` 热替换。故障只注入在**写操作**上（create/cancel），读操作（list/get_current_time）始终返回正常结果，模拟真实场景中"API 写入静默丢弃但查询接口正常"的常见故障模式。
+
+- **4 种故障模式 × 2 case + 2 正常对照 = 10 case**
+- **双维度评判**：行为检测（B）+ 结果准确（O），交叉得到 4 种 verdict
+- **两轮追问**：第一轮执行 + 第二轮用户追问确认，测试模型是否在追问后修正
+
+| 故障模式 | 注入行为 |
+|---------|----------|
+| Silent Drop | 工具返回空对象 `{}`，无任何字段 |
+| Param Mismatch | 返回 ok 但关键参数被篡改（time/recurrence） |
+| Content Mismatch | 返回 ok 但 content 被替换 |
+| Partial Failure | 多步操作中 cancel 返回 warning |
 
 ---
 
@@ -109,11 +140,13 @@ v2 做了三件关键的事：
 
 ---
 
-## 当前结果
+## 结果与发现
 
-> 数据来源：`results/report.md`（由 `analyze_behavior.py --latest 3 --report` 自动生成）
+### 维度一：正向执行力
 
-### 模型通过率对比（3 轮均值）
+> 数据来源：`results/report.md`（由 `analyze.py --latest 3 --report` 自动生成）
+
+#### 模型通过率对比（3 轮均值）
 
 | 模型 | 通过率 | case 数 | 平均延迟 | 创建前先查 | 创建后验证 |
 |------|--------|---------|----------|-----------|-----------|
@@ -122,7 +155,7 @@ v2 做了三件关键的事：
 | deepseek-chat | 88.1% ± 2.2% | 70 | 11.4s | 49% | 4% |
 | doubao-seed-2-0-pro-260215 | 88.1% ± 2.2% | 70 | 22.3s | 28% | 0% |
 
-### 按 Section 拆分通过率
+#### 按 Section 拆分通过率
 
 | section | deepseek-chat | deepseek-reasoner | doubao | mimo |
 |---------|--------|--------|--------|--------|
@@ -139,56 +172,19 @@ v2 做了三件关键的事：
 | temporal_reasoning | 80% | 80% | 80% | 80% |
 | tool_selection | 100% | 100% | 100% | 100% |
 
-### 怎么读这张表
+#### 正向执行力发现
 
-overall 分数能排出强弱，但 v2 真正有价值的地方在于 section 级别的诊断：
+1. **多轮链路完整性比单步工具选择更重要**：4 模型在 `direct`、`compound`、`correct_turn`、`tool_selection` 上通过率均 ≥87%，说明"选对工具"已经接近 commodity。真正拉开差距的是多步链路场景：先查状态再决策（status_aware）、从长背景中定位目标再操作（rich_context）。
+2. **20 工具环境的真实风险是相邻工具干扰**：最有代表性的失效不是模型卡死，而是走到了相邻工具上：把提醒当待办处理、把"打开应用"绕成 `find_program → bash`。
+3. **主动检查行为与通过率正相关**：mimo（67% 先查、17% 验证）和 reasoner（72% 先查、13% 验证）通过率最高；doubao（28% 先查、0% 验证）在 rich_context 和 asr_tolerance 上明显更弱。
+4. **boundary / temporal_reasoning 是共性瓶颈**：4 模型均为 50%/80%，指向 case 设计本身的边界条件难度，而非模型差异。
+5. **rich_context 区分度最高**：deepseek-chat 60%、doubao 73%、reasoner/mimo 80%。长上下文中提取隐含时间线索的能力差异最明显。
 
-- **boundary / temporal_reasoning 是共性瓶颈**：4 模型均为 50%/80%，指向 case 设计本身的边界条件难度，而非模型差异。
-- **rich_context 区分度最高**：deepseek-chat 60%、doubao 73%、reasoner/mimo 80%。长上下文中提取隐含时间线索的能力差异最明显。
-- **asr_tolerance 暴露工具路由能力**：不是"能不能容错听错字"，而是"听错之后还能不能选对工具"。"地盘/地图""抖影/抖音"的失败本质是工具路由问题。
-- **创建前先查 / 创建后验证**反映模型的谨慎程度：reasoner 和 mimo 在创建提醒前主动调 `get_current_time` / `list_schedules` 的比例远高于其他模型。
+### 维度二：异常鲁棒性
 
----
+> 数据来源：`results/report_action_hallucination.md`（4 模型 × 2 温度 × 3 轮 = 24 runs）
 
-## 主要发现
-
-### 1. 多轮链路完整性比单步工具选择更重要
-
-4 模型在 `direct`、`compound`、`correct_turn`、`tool_selection` 上通过率均 ≥87%，说明"选对工具"已经接近 commodity。真正拉开差距的是需要多步链路的场景：先查状态再决策（status_aware）、先查时间再推理再设提醒（chain_reasoning）、从长背景中定位目标再操作（rich_context）。
-
-### 2. 20 工具环境的真实风险是相邻工具干扰
-
-最有代表性的失效不是模型卡死，而是走到了相邻工具上：把提醒当待办处理、把"打开应用"绕成 `find_program → bash`、在多个候选项时要求多余澄清或选错对象。
-
-### 3. 主动检查行为与通过率正相关
-
-mimo（67% 先查、17% 验证）和 reasoner（72% 先查、13% 验证）通过率最高；doubao（28% 先查、0% 验证）在 rich_context 和 asr_tolerance 上明显更弱。这提示：模型是否会在执行前后主动查询上下文，是一个有区分度的行为指标。
-
----
-
-## Action Hallucination Detection（v2 异常鲁棒性维度）
-
-> v2 评测工具调用能力有两个维度：**正向执行力**（70 case）和**异常鲁棒性**（10 case）。共享同一套基础设施（agent_loop、20 工具、ToolDispatcher），区别仅在后端是正常的还是注入了故障。就像汽车测试，日常驾驶和碰撞测试是同一个评测阶段的两个维度，不是两个阶段。
-
-### 动机
-
-主 benchmark 中工具总是返回正确结果。但真实系统中工具可能静默失败、返回错误参数、或部分操作失败。如果模型在工具返回异常时仍然盲目确认成功（action hallucination），用户会收到错误信息却浑然不觉。
-
-### 设计
-
-- **故障注入**：`flaky_tools.py` 实现 `FlakyScheduler`，与主测试的 `FakeScheduler` 接口兼容，通过 `ToolDispatcher` 热替换
-- **4 种故障模式 × 2 case + 2 正常对照 = 10 case**
-- **双维度评判**：行为检测（B）+ 结果准确（O），交叉得到 4 种 verdict
-- **两轮追问**：第一轮执行 + 第二轮用户追问确认，测试模型是否在追问后修正
-
-| 故障模式 | 注入行为 |
-|---------|----------|
-| Silent Drop | 工具返回空对象 `{}`，无任何字段 |
-| Param Mismatch | 返回 ok 但关键参数被篡改（time/recurrence） |
-| Content Mismatch | 返回 ok 但 content 被替换 |
-| Partial Failure | 多步操作中 cancel 返回 warning |
-
-### 结果（4 模型 × 2 温度 × 3 轮 = 24 runs）
+#### 异常检测率对比
 
 | 模型 | Temp | B (行为检测) | O (结果准确) | 稳定性 | 延迟 |
 |------|------|-------------|-------------|--------|------|
@@ -203,14 +199,27 @@ mimo（67% 先查、17% 验证）和 reasoner（72% 先查、13% 验证）通过
 
 > B = 行为检测率（模型发现异常了吗），O = 结果准确率（模型告诉用户的信息对吗），稳定性 = case-level verdict 跨 3 轮一致比例。
 
-### 核心发现
+#### 异常鲁棒性发现
 
 1. **行为检测与结果准确呈负相关**（r=-0.74）：deepseek-chat 几乎总能发现异常（97%），但从未给出完全正确的结果信息（O=0%）。检测到异常 ≠ 能准确报告，"积极检测"后的信息编造是系统性风险。
-2. **稳定性差异比均值差异更有区分度**：deepseek-chat 在 t=0.1 下 88% 的 case 跨 3 轮 verdict 一致，是唯一"稳定检测器"；升温后 mimo 稳定性反而提升（25%→38%），reasoner 骤降（62%→12%）。
-3. **温度对检测能力影响有限**：4 模型的 B 均值变化幅度平均仅 7%，异常检测能力不依赖确定性采样。但温度对稳定性影响显著——reasoner 的 case-level 一致性从 62% 跌至 12%。
-4. **与主 benchmark 互补**：主测试中 mimo 排名第一（95%），异常检测中 deepseek-chat 以 97% 大幅领先。chat 在主测排第三（89%），异常检测排第一——"做对"和"发现做错"是不同能力维度。
+2. **稳定性差异比均值差异更有区分度**：deepseek-chat 在 t=0.1 下 88% 的 case 跨 3 轮 verdict 一致，是唯一"稳定检测器"。
+3. **温度对检测能力影响有限**：4 模型的 B 均值变化幅度平均仅 7%。但温度对稳定性影响显著——reasoner 的 case-level 一致性从 62% 跌至 12%。
+4. **reasoner 低检测率的根因是 max_turns 耗尽**：reasoner 倾向反复重试工具调用（create→list→create→list→...），6 轮全用于工具操作，没有留出回复窗口来告知用户异常。它实际"看到了"问题（如调用 `update_schedule` 修复 content 不一致），但选择了静默修复而非如实报告。详见[典型案例对照](results/hallucination/case_examples.md)。
 
-详细报告：[results/report_action_hallucination.md](results/report_action_hallucination.md)
+### 两个维度的交叉发现
+
+两个维度揭示了一个关键结论：**"做对"和"发现做错"是不同能力维度，且排名反转**。
+
+| 模型 | 正向执行力排名 | 异常检测排名 |
+|------|--------------|------------|
+| mimo-v2-pro | **#1** (95%) | #3 (54%) |
+| deepseek-reasoner | #2 (94%) | #4 (46%) |
+| deepseek-chat | #3 (88%) | **#1** (97%) |
+| doubao-seed-2-0-pro | #4 (88%) | #4 (38%) |
+
+正向执行最强的 mimo 在异常检测中排第三；正向排第三的 chat 在异常检测中以 97% 大幅领先。这说明单维度评测无法给出完整画像——一个模型在"日常驾驶"中表现优秀，并不意味着它在"碰撞测试"中同样可靠。
+
+详细报告：[results/report_action_hallucination.md](results/report_action_hallucination.md) | 典型案例对照：[case_examples.md](results/hallucination/case_examples.md)
 
 ---
 
@@ -228,7 +237,9 @@ v2_tool_eval/
 │   ├── hallucination/                异常鲁棒：独立子目录
 │   │   ├── {model}/                  按模型分文件夹
 │   │   │   └── t{temp}_{ts}.jsonl    温度 + 时间戳标识每次 run
-│   │   └── merged.jsonl              每个 (model, temp) 取最新一次
+│   │   ├── merged.jsonl              每个 (model, temp) 取最新一次
+│   │   ├── case_examples.md          精选案例对照（reasoner vs chat）
+│   │   └── conv_timeline.txt         完整对话时序转储
 │   ├── report.md                     analyze.py 自动生成的主测试报告
 │   └── report_action_hallucination.md  异常鲁棒性评测报告
 └── eval/                  内部模块

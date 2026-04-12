@@ -119,6 +119,17 @@ python run.py --runs 3
 python analyze.py --latest 3 --report
 ```
 
+## 数据集
+
+评测过程中产出了可供下游使用的标注数据集，见 [datasets/README.md](datasets/README.md)：
+
+| 数据集 | 记录数 | 说明 |
+|--------|--------|------|
+| tool_call_hard_cases | 12 | 工具调用失败轨迹，OpenAI messages 格式，可直接用于 DPO |
+| action_hallucination | 64 | 故障注入 + 幻觉标注，含 fault_mode / fabricated / verdict 字段 |
+| hallucination_dpo_pairs | 6 | 正确回复 vs 幻觉回复对比对 |
+| generated_hard_cases | 31 | 按 6 类错误 pattern 程序化生成并跑框架采集，含 auto_verdict |
+
 ## 详细文档
 
 - v1 意图理解评测 → [v1_intent_eval/README.md](v1_intent_eval/README.md)
