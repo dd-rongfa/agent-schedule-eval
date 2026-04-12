@@ -92,6 +92,24 @@ get_current_time, create_schedule, cancel_schedule, create_recurring, list_sched
 
 完整 tool schema 见 `eval/test_tool_calling.py`。
 
+## 当前状态与下一步方向
+
+### 已完成
+- 从现有 v2 评测结果中筛选失败轨迹（过滤了 61% 误判后保留 12 条真实失败）
+- 故障注入 × 4 模型 × 2 温度的幻觉检测标注（64 条）
+- 6 类错误 pattern 程序化 case 定义 + 真实框架采集（31 条，1 模型）
+
+### 已知局限
+- `generated_hard_cases` 目前只跑了 deepseek-chat，尚未覆盖其他模型
+- `hallucination` pattern 的 auto-verdict 有效性低（4 条全为 needs_manual_review），需人工标注
+- `wrong_params` 对 deepseek-chat 无区分力（5/5 全过），参数混淆 case 难度不足
+
+### 下一步方向
+1. **扩大模型覆盖**：用同一套 30 case 跑 4 个模型，生成跨模型对比数据
+2. **加入诊断工具扩展**：`diagnose_error` + `wait_and_retry`（已在 `eval/diagnostic_tools.py` 实现）纳入正式工具集，测试带诊断工具后模型的鲁棒性变化
+3. **人工标注 hallucination**：对 needs_manual_review 的 case 建立人工标注规范，补全 DPO 对
+4. **提升 wrong_params 难度**：加入更隐蔽的参数陷阱（如时区歧义、隐式日期格式）
+
 ## 许可
 
 研究用途。数据来源于受控环境下的模型 API 调用，不含任何个人信息。
