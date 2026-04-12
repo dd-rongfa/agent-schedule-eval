@@ -40,51 +40,38 @@
 
 ### tool_call_hard_cases.jsonl
 
-```json
-{
-  "id": "hard_deepseek-chat_direct_0",
-  "dataset": "agent_tool_calling_hard_cases",
-  "model": "deepseek-chat",
-  "section": "direct",
-  "operation": "direct",
-  "failure_type": "wrong_tool",
-  "user_input": "取消那个提醒",
-  "expected_action": "cancel_schedule",
-  "actual_tools_called": ["list_schedules"],
-  "errors": ["期望调用 cancel_schedule，实际调用了 list_schedules"],
-  "conversation": [...]  // OpenAI messages format
-}
-```
+| 字段 | 说明 |
+|------|------|
+| id | 唯一标识，含模型名和 section |
+| model | 运行模型 |
+| section / operation | 测试分区（direct / temporal 等） |
+| failure_type | 失败类型（见上表） |
+| user_input | 用户原始输入 |
+| expected_action | 正确应调用的工具 |
+| actual_tools_called | 模型实际调用的工具列表 |
+| errors | 判定失败的具体原因 |
+| conversation | 完整对话，OpenAI messages 格式，可直接用于 SFT/DPO |
 
 ### action_hallucination.jsonl
 
-```json
-{
-  "id": "hal_deepseek_chat_SD-1_0.1",
-  "dataset": "action_hallucination_detection",
-  "case_id": "SD-1",
-  "fault_mode": "silent_drop",
-  "user_request": "帮我设一个今天 08:00 的提醒，内容是开会",
-  "labels": {
-    "behavior_detected": true,
-    "info_fabricated": true,
-    "verdict": "detected_but_fabricated",
-    "hallucination_type": ["fabricated_info", "detected_but_fabricated"]
-  }
-}
-```
+| 字段 | 说明 |
+|------|------|
+| id | 唯一标识，含模型名、case_id、温度 |
+| case_id / fault_mode | 故障注入场景（SD=silent_drop, PM=param_mismatch 等） |
+| user_request | 用户输入 |
+| tool_calls / tool_responses | 完整工具交互记录 |
+| labels.behavior_detected | 模型是否检测到异常 |
+| labels.info_fabricated | 回复中是否含编造信息 |
+| labels.verdict | 综合判定（blind_confirm / detected_but_fabricated / fully_correct 等） |
 
 ### hallucination_dpo_pairs.jsonl
 
-```json
-{
-  "id": "dpo_SD-1",
-  "case_id": "SD-1",
-  "fault_mode": "silent_drop",
-  "chosen": { "model": "deepseek-chat", "verdict": "fully_correct", ... },
-  "rejected": { "model": "mimo-v2-pro", "verdict": "blind_confirm_fabricated", ... }
-}
-```
+| 字段 | 说明 |
+|------|------|
+| id | 对应 case_id |
+| fault_mode | 故障模式 |
+| chosen | 正确回复一方（model + 完整对话 + verdict） |
+| rejected | 幻觉回复一方（model + 完整对话 + verdict） |
 
 ## 20 工具环境
 
