@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 # ── .env 加载 ──────────────────────────────────────
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 # ── Model Registry ────────────────────────────────

@@ -166,21 +166,77 @@ mimo（67% 先查、17% 验证）和 reasoner（72% 先查、13% 验证）通过
 
 ---
 
+## Action Hallucination Detection（v2 异常鲁棒性维度）
+
+> v2 评测工具调用能力有两个维度：**正向执行力**（70 case）和**异常鲁棒性**（10 case）。共享同一套基础设施（agent_loop、20 工具、ToolDispatcher），区别仅在后端是正常的还是注入了故障。就像汽车测试，日常驾驶和碰撞测试是同一个评测阶段的两个维度，不是两个阶段。
+
+### 动机
+
+主 benchmark 中工具总是返回正确结果。但真实系统中工具可能静默失败、返回错误参数、或部分操作失败。如果模型在工具返回异常时仍然盲目确认成功（action hallucination），用户会收到错误信息却浑然不觉。
+
+### 设计
+
+- **故障注入**：`flaky_tools.py` 实现 `FlakyScheduler`，与主测试的 `FakeScheduler` 接口兼容，通过 `ToolDispatcher` 热替换
+- **4 种故障模式 × 2 case + 2 正常对照 = 10 case**
+- **双维度评判**：行为检测（B）+ 结果准确（O），交叉得到 4 种 verdict
+- **两轮追问**：第一轮执行 + 第二轮用户追问确认，测试模型是否在追问后修正
+
+| 故障模式 | 注入行为 |
+|---------|----------|
+| Silent Drop | 工具返回空对象 `{}`，无任何字段 |
+| Param Mismatch | 返回 ok 但关键参数被篡改（time/recurrence） |
+| Content Mismatch | 返回 ok 但 content 被替换 |
+| Partial Failure | 多步操作中 cancel 返回 warning |
+
+### 结果（4 模型 × 2 温度 × 3 轮 = 24 runs）
+
+| 模型 | Temp | B (行为检测) | O (结果准确) | 稳定性 | 延迟 |
+|------|------|-------------|-------------|--------|------|
+| deepseek-chat | 0.1 | **97±6%** | 0±0% | **88%** | 20.1s |
+| deepseek-chat | 0.7 | 92±7% | 4±7% | 62% | 17.4s |
+| mimo-v2-pro | 0.1 | 54±7% | 17±14% | 25% | 28.5s |
+| mimo-v2-pro | 0.7 | 62±0% | 12±12% | 38% | 27.1s |
+| deepseek-reasoner | 0.1 | 46±7% | **38±0%** | 62% | 37.4s |
+| deepseek-reasoner | 0.7 | 54±7% | 42±26% | 12% | 32.9s |
+| doubao-seed-2-0-pro | 0.1 | 38±22% | 17±7% | 50% | 39.3s |
+| doubao-seed-2-0-pro | 0.7 | 42±7% | 17±14% | 50% | 39.4s |
+
+> B = 行为检测率（模型发现异常了吗），O = 结果准确率（模型告诉用户的信息对吗），稳定性 = case-level verdict 跨 3 轮一致比例。
+
+### 核心发现
+
+1. **行为检测与结果准确呈负相关**（r=-0.74）：deepseek-chat 几乎总能发现异常（97%），但从未给出完全正确的结果信息（O=0%）。检测到异常 ≠ 能准确报告，"积极检测"后的信息编造是系统性风险。
+2. **稳定性差异比均值差异更有区分度**：deepseek-chat 在 t=0.1 下 88% 的 case 跨 3 轮 verdict 一致，是唯一"稳定检测器"；升温后 mimo 稳定性反而提升（25%→38%），reasoner 骤降（62%→12%）。
+3. **温度对检测能力影响有限**：4 模型的 B 均值变化幅度平均仅 7%，异常检测能力不依赖确定性采样。但温度对稳定性影响显著——reasoner 的 case-level 一致性从 62% 跌至 12%。
+4. **与主 benchmark 互补**：主测试中 mimo 排名第一（95%），异常检测中 deepseek-chat 以 97% 大幅领先。chat 在主测排第三（89%），异常检测排第一——"做对"和"发现做错"是不同能力维度。
+
+详细报告：[results/report_action_hallucination.md](results/report_action_hallucination.md)
+
+---
+
 ## 文件说明
 
 ```
 v2_tool_eval/
 ├── README.md              当前说明文档
 ├── run.py                 入口：一键多模型评测（并行 + 串行多轮）
+├── run_hallucination.ps1  入口：幻觉鲁棒性多温度实验 runner
 ├── analyze.py             入口：结果分析（聚合 + Markdown/JSON/report）
 ├── schedule_cases.yaml    85 条案例定义，70 条进入自动化
 ├── results/
-│   ├── {model}/           按模型分文件夹，每次运行一个 run_{ts}.jsonl
-│   └── report.md          analyze.py 自动生成的结论性报告
+│   ├── {model}/                      正向执行：按模型分文件夹，每次运行一个 run_{ts}.jsonl
+│   ├── hallucination/                异常鲁棒：独立子目录
+│   │   ├── {model}/                  按模型分文件夹
+│   │   │   └── t{temp}_{ts}.jsonl    温度 + 时间戳标识每次 run
+│   │   └── merged.jsonl              每个 (model, temp) 取最新一次
+│   ├── report.md                     analyze.py 自动生成的主测试报告
+│   └── report_action_hallucination.md  异常鲁棒性评测报告
 └── eval/                  内部模块
     ├── agent_loop.py      多轮 tool-calling 执行循环（含 429/5xx 重试）
-    ├── mock_tools.py      Fake backend + ToolDispatcher
-    ├── test_tool_calling.py  pytest 核心：确定性断言 + JSONL 归档
+    ├── mock_tools.py      Fake backend + ToolDispatcher（正常工具）
+    ├── flaky_tools.py     FlakyScheduler 故障注入工具（幻觉测试专用）
+    ├── test_tool_calling.py  正向执行：确定性断言 + JSONL 归档
+    ├── test_action_hallucination.py  异常鲁棒：故障注入 + 双维度评判
     └── verify.py          结果完整性检查
 ```
 
@@ -207,6 +263,32 @@ python run.py --models deepseek-chat --runs 1
 每次运行生成：`results/{model}/run_{YYYYMMDD_HHMMSS}.jsonl`
 
 分析报告生成：`results/report.md`（含单次明细 + 多轮聚合均值±标准差）
+
+### Action Hallucination 测试复现
+
+```bash
+cd v2_tool_eval
+
+# 单次运行（默认 t=0.1）
+TARGET_MODEL=deepseek-chat python eval/test_action_hallucination.py
+
+# 指定温度
+TEMPERATURE=0.7 TARGET_MODEL=deepseek-chat python eval/test_action_hallucination.py
+
+# Windows PowerShell 单次
+$env:TARGET_MODEL="deepseek-chat"; $env:TEMPERATURE="0.7"; python eval/test_action_hallucination.py
+
+# 一键多温度多轮鲁棒性实验（4模型 × 2温度 × 3轮 = 24 runs，模型间并行）
+.\run_hallucination.ps1
+
+# 自定义参数
+.\run_hallucination.ps1 -Temps 0.1 -Rounds 1
+.\run_hallucination.ps1 -Models "deepseek-chat","mimo-v2-pro" -Temps 0.1,0.7 -Rounds 3
+```
+
+每次运行写入 `results/hallucination/{model}/t{temp}_{timestamp}.jsonl`，自动合并到 `results/hallucination/merged.jsonl`（每个 model×temp 组合取最新一次）。
+
+评测报告：`results/report_action_hallucination.md`
 
 ---
 
