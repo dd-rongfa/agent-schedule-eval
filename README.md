@@ -132,4 +132,4 @@ python analyze.py --latest 3 --report
 
 - v1 意图理解评测 → [v1_intent_eval/README.md](v1_intent_eval/README.md)
 - v2 工具调用评测 → [v2_tool_eval/README.md](v2_tool_eval/README.md)
-- v3 真实部署报告 → [v3_live_eval/nanobot/report_3model_comparison.md](v3_live_eval/nanobot/report_3model_comparison.md)
+- v3 真实部署报告 → [v3_live_eval/nanobot/README.md](v3_live_eval/nanobot/README.md)
